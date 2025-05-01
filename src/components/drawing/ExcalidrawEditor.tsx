@@ -49,8 +49,28 @@ const ExcalidrawEditor: React.FC<ExcalidrawEditorProps> = ({
       files
     };
     
+    // Call onSave even if the drawing is empty, we just need valid JSON
     onSave(JSON.stringify(drawingData));
   };
+
+  // Save drawing automatically when the excalidrawAPI is set and on every pointer up action
+  useEffect(() => {
+    if (excalidrawAPI && onSave && !readOnly) {
+      // Initial save to make sure we have content
+      saveDrawing();
+      
+      // Set up event listener for changes
+      const onPointerUp = () => {
+        saveDrawing();
+      };
+      
+      excalidrawAPI.addListener("pointerup", onPointerUp);
+      
+      return () => {
+        excalidrawAPI.removeListener("pointerup", onPointerUp);
+      };
+    }
+  }, [excalidrawAPI, onSave, readOnly]);
 
   return (
     <div className="excalidraw-wrapper relative border rounded-md" style={{ height: readOnly ? '500px' : '70vh' }}>

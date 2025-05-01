@@ -83,7 +83,7 @@ const WorkspaceDialog: React.FC<WorkspaceDialogProps> = ({
             content: imagePreview,
           });
         } else if (itemType === 'drawing') {
-          if (!drawingTitle.trim() || !drawingContent) return;
+          if (!drawingTitle.trim()) return;
           await addContentItem(currentWorkspace.id, {
             type: 'drawing',
             title: drawingTitle,
@@ -262,7 +262,7 @@ const WorkspaceDialog: React.FC<WorkspaceDialogProps> = ({
               disabled={isSubmitting || (
                 itemType === 'note' ? (!noteTitle || !noteContent) : 
                 itemType === 'image' ? (!imageTitle || !imagePreview) : 
-                (!drawingTitle || !drawingContent)
+                (!drawingTitle)
               )}
             >
               {isSubmitting ? 'Adding...' : 'Add Item'}
