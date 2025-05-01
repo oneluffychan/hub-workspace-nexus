@@ -1,14 +1,12 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Session, User } from '@supabase/supabase-js';
 import { toast } from 'sonner';
-
-interface User {
-  id: string;
-  email: string;
-}
+import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string) => Promise<void>;
@@ -27,72 +25,71 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Check if user is already logged in on mount
+  // Set up auth state listener and check for existing session
   useEffect(() => {
-    const checkAuth = () => {
-      const storedUser = localStorage.getItem('workspaceHubUser');
-      if (storedUser) {
-        try {
-          setUser(JSON.parse(storedUser));
-        } catch (error) {
-          console.error('Failed to parse stored user:', error);
-          localStorage.removeItem('workspaceHubUser');
-        }
+    // First set up the auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_, currentSession) => {
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
       }
-      setLoading(false);
-    };
+    );
 
-    checkAuth();
+    // Then check for existing session
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      setSession(currentSession);
+      setUser(currentSession?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  // Login function (simulated for now)
+  // Login function
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // This is just for demo/development. In a real app with Supabase,
-      // we would authenticate via Supabase auth
-      const mockUser = {
-        id: `user-${Math.random().toString(36).substring(2, 9)}`,
+      const { error } = await supabase.auth.signInWithPassword({
         email,
-      };
-
-      setUser(mockUser);
-      localStorage.setItem('workspaceHubUser', JSON.stringify(mockUser));
+        password,
+      });
+      
+      if (error) {
+        toast.error(error.message || "Login failed");
+        throw error;
+      }
+      
       toast.success("Login successful!");
     } catch (error) {
       console.error('Login error:', error);
-      toast.error("Login failed. Please check your credentials.");
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  // Signup function (simulated for now)
+  // Signup function
   const signup = async (email: string, password: string) => {
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // This is just for demo/development. In a real app with Supabase,
-      // we would register via Supabase auth
-      const mockUser = {
-        id: `user-${Math.random().toString(36).substring(2, 9)}`,
+      const { error } = await supabase.auth.signUp({
         email,
-      };
-
-      setUser(mockUser);
-      localStorage.setItem('workspaceHubUser', JSON.stringify(mockUser));
-      toast.success("Account created successfully!");
+        password,
+      });
+      
+      if (error) {
+        toast.error(error.message || "Signup failed");
+        throw error;
+      }
+      
+      toast.success("Account created successfully! Please verify your email.");
     } catch (error) {
       console.error('Signup error:', error);
-      toast.error("Signup failed. Please try again.");
       throw error;
     } finally {
       setLoading(false);
@@ -103,15 +100,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const { error } = await supabase.auth.signOut();
       
-      setUser(null);
-      localStorage.removeItem('workspaceHubUser');
+      if (error) {
+        toast.error(error.message || "Logout failed");
+        throw error;
+      }
+      
       toast.success("Logged out successfully");
     } catch (error) {
       console.error('Logout error:', error);
-      toast.error("Logout failed.");
       throw error;
     } finally {
       setLoading(false);
@@ -121,6 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <AuthContext.Provider value={{
       user,
+      session,
       loading,
       login,
       signup,
