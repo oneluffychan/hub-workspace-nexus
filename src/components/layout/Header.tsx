@@ -48,6 +48,7 @@ const Header: React.FC<HeaderProps> = ({ viewMode, setViewMode }) => {
           onClick={() => setIsCreateOpen(true)}
           size="sm"
           className="flex items-center"
+          disabled={!currentWorkspace}
         >
           <PlusSquare size={16} className="mr-1" />
           Add Item
