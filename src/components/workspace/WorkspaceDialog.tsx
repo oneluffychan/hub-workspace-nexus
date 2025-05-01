@@ -12,9 +12,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 export type WorkspaceDialogMode = 'create' | 'rename' | 'delete' | 'add-item';
 
@@ -101,6 +102,23 @@ const WorkspaceDialog: React.FC<WorkspaceDialogProps> = ({
     reader.readAsDataURL(file);
   };
   
+  // Quill editor modules and formats
+  const modules = {
+    toolbar: [
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      ['link', 'image', 'code-block'],
+      [{ 'header': [1, 2, 3, false] }],
+    ],
+  };
+
+  const formats = [
+    'header',
+    'bold', 'italic', 'underline', 'strike',
+    'list', 'bullet',
+    'link', 'image', 'code-block'
+  ];
+
   if (mode === 'delete') {
     return (
       <AlertDialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -129,7 +147,7 @@ const WorkspaceDialog: React.FC<WorkspaceDialogProps> = ({
   if (mode === 'add-item') {
     return (
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md md:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Add New Item</DialogTitle>
             <DialogDescription>
@@ -155,13 +173,16 @@ const WorkspaceDialog: React.FC<WorkspaceDialogProps> = ({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="noteContent">Content</Label>
-                <Textarea
-                  id="noteContent"
-                  placeholder="Write your note here..."
-                  value={noteContent}
-                  onChange={(e) => setNoteContent(e.target.value)}
-                  rows={6}
-                />
+                <div className="min-h-[300px]">
+                  <ReactQuill
+                    theme="snow"
+                    value={noteContent}
+                    onChange={setNoteContent}
+                    modules={modules}
+                    formats={formats}
+                    className="h-[250px] mb-12"
+                  />
+                </div>
               </div>
             </TabsContent>
             

@@ -7,9 +7,13 @@ import { Grid2x2, List, PlusSquare } from 'lucide-react';
 import { useState } from 'react';
 import WorkspaceDialog from '@/components/workspace/WorkspaceDialog';
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  viewMode: 'grid' | 'list';
+  setViewMode: (mode: 'grid' | 'list') => void;
+}
+
+const Header: React.FC<HeaderProps> = ({ viewMode, setViewMode }) => {
   const { currentWorkspace } = useWorkspace();
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   
   return (

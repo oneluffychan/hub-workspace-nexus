@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
@@ -7,6 +7,7 @@ import { WorkspaceProvider } from "@/contexts/WorkspaceContext";
 
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   if (loading) {
     return (
@@ -25,9 +26,14 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <div className="min-h-screen flex flex-col md:flex-row">
         <Sidebar />
         <div className="flex-1 flex flex-col">
-          <Header />
+          <Header viewMode={viewMode} setViewMode={setViewMode} />
           <main className="flex-1 p-4 md:p-6 overflow-auto bg-gray-50">
-            {children}
+            {React.Children.map(children, child => {
+              if (React.isValidElement(child)) {
+                return React.cloneElement(child as React.ReactElement<any>, { viewMode });
+              }
+              return child;
+            })}
           </main>
         </div>
       </div>

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useWorkspace, ContentItem } from '@/contexts/WorkspaceContext';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,14 +7,18 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Trash2, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 const WorkspaceContent: React.FC = () => {
-  const { currentWorkspace, deleteContentItem } = useWorkspace();
+  const { currentWorkspace, deleteContentItem, updateContentItem } = useWorkspace();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [itemToDelete, setItemToDelete] = useState<ContentItem | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState<ContentItem | null>(null);
+  const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
+  const [editContent, setEditContent] = useState('');
   
   if (!currentWorkspace) {
     return (
@@ -70,6 +74,31 @@ const WorkspaceContent: React.FC = () => {
   const closePreview = () => {
     setPreviewItem(null);
   };
+
+  const openEditor = (item: ContentItem) => {
+    setEditingItem(item);
+    setEditContent(item.content);
+  };
+
+  const closeEditor = () => {
+    setEditingItem(null);
+    setEditContent('');
+  };
+
+  const saveEditedContent = async () => {
+    if (!editingItem || !currentWorkspace) return;
+
+    try {
+      await updateContentItem(currentWorkspace.id, editingItem.id, {
+        ...editingItem,
+        content: editContent,
+        updatedAt: new Date().toISOString()
+      });
+      closeEditor();
+    } catch (error) {
+      console.error("Failed to update item:", error);
+    }
+  };
   
   const formatDate = (dateString: string) => {
     const options: Intl.DateTimeFormatOptions = { 
@@ -79,6 +108,23 @@ const WorkspaceContent: React.FC = () => {
     };
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
+
+  // Quill editor modules and formats
+  const modules = {
+    toolbar: [
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      ['link', 'image', 'code-block'],
+      [{ 'header': [1, 2, 3, false] }],
+    ],
+  };
+
+  const formats = [
+    'header',
+    'bold', 'italic', 'underline', 'strike',
+    'list', 'bullet',
+    'link', 'image', 'code-block'
+  ];
   
   return (
     <div className="space-y-6">
@@ -115,18 +161,21 @@ const WorkspaceContent: React.FC = () => {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="p-4 pt-2 flex-1 overflow-hidden" onClick={() => openPreview(item)}>
+              <CardContent 
+                className="p-4 pt-2 flex-1 overflow-hidden cursor-pointer" 
+                onClick={() => item.type === 'note' ? openEditor(item) : openPreview(item)}
+              >
                 {item.type === 'image' ? (
                   <div className="h-full flex items-center justify-center bg-gray-100 rounded">
                     <img
                       src={item.content}
                       alt={item.title}
-                      className="max-h-full max-w-full object-contain cursor-pointer"
+                      className="max-h-full max-w-full object-contain"
                     />
                   </div>
                 ) : (
-                  <div className="h-full overflow-hidden text-gray-600 cursor-pointer">
-                    <p className="line-clamp-5">{item.content}</p>
+                  <div className="h-full overflow-hidden text-gray-600">
+                    <div className="line-clamp-5" dangerouslySetInnerHTML={{ __html: item.content }} />
                   </div>
                 )}
               </CardContent>
@@ -139,7 +188,7 @@ const WorkspaceContent: React.FC = () => {
       ) : (
         <div className="space-y-2">
           {filteredItems.map((item) => (
-            <Card key={item.id} onClick={() => openPreview(item)}>
+            <Card key={item.id} onClick={() => item.type === 'note' ? openEditor(item) : openPreview(item)}>
               <div className="p-3 flex items-center justify-between cursor-pointer">
                 <div className="overflow-hidden">
                   <h3 className="text-base font-medium">{item.title}</h3>
@@ -201,9 +250,7 @@ const WorkspaceContent: React.FC = () => {
                 />
               </div>
             ) : (
-              <div className="my-4 whitespace-pre-wrap text-gray-700">
-                {previewItem.content}
-              </div>
+              <div className="my-4 whitespace-pre-wrap text-gray-700" dangerouslySetInnerHTML={{ __html: previewItem.content }} />
             )}
             
             <DialogFooter>
@@ -213,6 +260,33 @@ const WorkspaceContent: React.FC = () => {
                   ` • Updated: ${formatDate(previewItem.updatedAt)}`}
               </p>
               <Button onClick={closePreview}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Rich text editor dialog */}
+      {editingItem && (
+        <Dialog open={!!editingItem} onOpenChange={(open) => !open && closeEditor()}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit: {editingItem.title}</DialogTitle>
+            </DialogHeader>
+            
+            <div className="my-4">
+              <ReactQuill
+                theme="snow"
+                value={editContent}
+                onChange={setEditContent}
+                modules={modules}
+                formats={formats}
+                className="h-[50vh] mb-12"
+              />
+            </div>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={closeEditor}>Cancel</Button>
+              <Button onClick={saveEditedContent}>Save Changes</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
