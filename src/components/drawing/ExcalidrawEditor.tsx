@@ -1,12 +1,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { Excalidraw, exportToBlob } from "@excalidraw/excalidraw";
-import type { ExcalidrawAPIRefValue, ExcalidrawElement } from "@excalidraw/excalidraw/types/types";
+import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
 import { Button } from "@/components/ui/button";
 import { Save } from "lucide-react";
 
 export type DrawingData = {
-  elements: ExcalidrawElement[];
+  elements: any[];
   appState: any;
   files: any;
 };
@@ -22,7 +22,7 @@ const ExcalidrawEditor: React.FC<ExcalidrawEditorProps> = ({
   onSave,
   readOnly = false
 }) => {
-  const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawAPIRefValue | null>(null);
+  const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI | null>(null);
   const [initialContent, setInitialContent] = useState<DrawingData | null>(null);
 
   useEffect(() => {
@@ -55,7 +55,7 @@ const ExcalidrawEditor: React.FC<ExcalidrawEditorProps> = ({
   return (
     <div className="excalidraw-wrapper relative border rounded-md" style={{ height: readOnly ? '500px' : '70vh' }}>
       <Excalidraw
-        ref={(api) => setExcalidrawAPI(api)}
+        excalidrawAPI={(api) => setExcalidrawAPI(api)}
         initialData={initialContent || undefined}
         viewModeEnabled={readOnly}
       />
