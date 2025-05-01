@@ -1,5 +1,4 @@
-
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useWorkspace, ContentItem } from '@/contexts/WorkspaceContext';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Trash2, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import ReactQuill from 'react-quill';
+import ExcalidrawEditor from '@/components/drawing/ExcalidrawEditor';
 import 'react-quill/dist/quill.snow.css';
 
 const WorkspaceContent: React.FC = () => {
@@ -163,7 +163,11 @@ const WorkspaceContent: React.FC = () => {
               </CardHeader>
               <CardContent 
                 className="p-4 pt-2 flex-1 overflow-hidden cursor-pointer" 
-                onClick={() => item.type === 'note' ? openEditor(item) : openPreview(item)}
+                onClick={() => {
+                  if (item.type === 'note') openEditor(item);
+                  else if (item.type === 'drawing') openEditor(item);
+                  else openPreview(item);
+                }}
               >
                 {item.type === 'image' ? (
                   <div className="h-full flex items-center justify-center bg-gray-100 rounded">
@@ -172,6 +176,18 @@ const WorkspaceContent: React.FC = () => {
                       alt={item.title}
                       className="max-h-full max-w-full object-contain"
                     />
+                  </div>
+                ) : item.type === 'drawing' ? (
+                  <div className="h-full flex items-center justify-center bg-gray-100 rounded">
+                    <div className="text-center text-gray-500">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+                        <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+                        <path d="M2 2l7.586 7.586"></path>
+                        <circle cx="11" cy="11" r="2"></circle>
+                      </svg>
+                      <p className="mt-2">Click to open drawing</p>
+                    </div>
                   </div>
                 ) : (
                   <div className="h-full overflow-hidden text-gray-600">
@@ -188,7 +204,11 @@ const WorkspaceContent: React.FC = () => {
       ) : (
         <div className="space-y-2">
           {filteredItems.map((item) => (
-            <Card key={item.id} onClick={() => item.type === 'note' ? openEditor(item) : openPreview(item)}>
+            <Card key={item.id} onClick={() => {
+              if (item.type === 'note') openEditor(item);
+              else if (item.type === 'drawing') openEditor(item);
+              else openPreview(item);
+            }}>
               <div className="p-3 flex items-center justify-between cursor-pointer">
                 <div className="overflow-hidden">
                   <h3 className="text-base font-medium">{item.title}</h3>
@@ -273,16 +293,25 @@ const WorkspaceContent: React.FC = () => {
               <DialogTitle>Edit: {editingItem.title}</DialogTitle>
             </DialogHeader>
             
-            <div className="my-4">
-              <ReactQuill
-                theme="snow"
-                value={editContent}
-                onChange={setEditContent}
-                modules={modules}
-                formats={formats}
-                className="h-[50vh] mb-12"
-              />
-            </div>
+            {editingItem.type === 'drawing' ? (
+              <div className="my-4 h-[60vh]">
+                <ExcalidrawEditor 
+                  initialData={editingItem.content} 
+                  onSave={setEditContent}
+                />
+              </div>
+            ) : (
+              <div className="my-4">
+                <ReactQuill
+                  theme="snow"
+                  value={editContent}
+                  onChange={setEditContent}
+                  modules={modules}
+                  formats={formats}
+                  className="h-[50vh] mb-12"
+                />
+              </div>
+            )}
             
             <DialogFooter>
               <Button variant="outline" onClick={closeEditor}>Cancel</Button>

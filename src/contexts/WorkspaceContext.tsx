@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
@@ -7,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 export interface ContentItem {
   id: string;
-  type: 'note' | 'image';
+  type: 'note' | 'image' | 'drawing';
   title: string;
   content: string;
   createdAt: string;
@@ -99,7 +98,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             // Transform content items
             const items = itemsData.map(item => ({
               id: item.id,
-              type: item.type as 'note' | 'image',
+              type: item.type as 'note' | 'image' | 'drawing',
               title: item.title,
               content: item.content,
               createdAt: item.created_at,
@@ -264,7 +263,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  // Add a new content item (note or image) to a workspace
+  // Add a new content item (note, image, or drawing) to a workspace
   const addContentItem = async (workspaceId: string, item: Omit<ContentItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     setIsLoading(true);
     try {
@@ -287,7 +286,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Create new content item object
       const contentItem: ContentItem = {
         id: newItem.id,
-        type: newItem.type as 'note' | 'image',
+        type: newItem.type as 'note' | 'image' | 'drawing',
         title: newItem.title,
         content: newItem.content,
         createdAt: newItem.created_at,
@@ -317,7 +316,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         });
       }
       
-      toast.success(`${item.type === 'note' ? 'Note' : 'Image'} added to workspace`);
+      toast.success(`${item.type === 'note' ? 'Note' : item.type === 'image' ? 'Image' : 'Drawing'} added to workspace`);
     } catch (error) {
       console.error("Error adding content item:", error);
       toast.error(`Failed to add ${item.type}`);
