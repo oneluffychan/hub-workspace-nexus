@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 export interface ContentItem {
   id: string;
-  type: 'note' | 'image' | 'drawing';
+  type: 'note' | 'image';
   title: string;
   content: string;
   createdAt: string;

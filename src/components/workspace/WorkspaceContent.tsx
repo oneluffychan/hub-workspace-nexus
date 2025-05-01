@@ -9,21 +9,16 @@ import { Trash2, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import ExcalidrawEditor from '@/components/drawing/ExcalidrawEditor';
 
-interface WorkspaceContentProps {
-  viewMode?: 'grid' | 'list';
-}
-
-const WorkspaceContent: React.FC<WorkspaceContentProps> = ({ viewMode = 'grid' }) => {
+const WorkspaceContent: React.FC = () => {
   const { currentWorkspace, deleteContentItem, updateContentItem } = useWorkspace();
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [itemToDelete, setItemToDelete] = useState<ContentItem | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState<ContentItem | null>(null);
   const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
   const [editContent, setEditContent] = useState('');
-  const [editDrawingContent, setEditDrawingContent] = useState('');
   
   if (!currentWorkspace) {
     return (
@@ -82,36 +77,21 @@ const WorkspaceContent: React.FC<WorkspaceContentProps> = ({ viewMode = 'grid' }
 
   const openEditor = (item: ContentItem) => {
     setEditingItem(item);
-    if (item.type === 'note') {
-      setEditContent(item.content);
-    } else if (item.type === 'drawing') {
-      setEditDrawingContent(item.content);
-    }
+    setEditContent(item.content);
   };
 
   const closeEditor = () => {
     setEditingItem(null);
     setEditContent('');
-    setEditDrawingContent('');
   };
 
   const saveEditedContent = async () => {
     if (!editingItem || !currentWorkspace) return;
-    
+
     try {
-      let updatedContent;
-      
-      if (editingItem.type === 'note') {
-        updatedContent = editContent;
-      } else if (editingItem.type === 'drawing') {
-        updatedContent = editDrawingContent;
-      } else {
-        return;
-      }
-      
       await updateContentItem(currentWorkspace.id, editingItem.id, {
         ...editingItem,
-        content: updatedContent,
+        content: editContent,
         updatedAt: new Date().toISOString()
       });
       closeEditor();
@@ -183,15 +163,7 @@ const WorkspaceContent: React.FC<WorkspaceContentProps> = ({ viewMode = 'grid' }
               </CardHeader>
               <CardContent 
                 className="p-4 pt-2 flex-1 overflow-hidden cursor-pointer" 
-                onClick={() => {
-                  if (item.type === 'note') {
-                    openEditor(item);
-                  } else if (item.type === 'drawing') {
-                    openEditor(item);
-                  } else {
-                    openPreview(item);
-                  }
-                }}
+                onClick={() => item.type === 'note' ? openEditor(item) : openPreview(item)}
               >
                 {item.type === 'image' ? (
                   <div className="h-full flex items-center justify-center bg-gray-100 rounded">
@@ -201,13 +173,6 @@ const WorkspaceContent: React.FC<WorkspaceContentProps> = ({ viewMode = 'grid' }
                       className="max-h-full max-w-full object-contain"
                     />
                   </div>
-                ) : item.type === 'drawing' ? (
-                  <div className="h-full flex items-center justify-center bg-gray-100 rounded">
-                    <div className="text-center text-gray-500">
-                      <p>Drawing</p>
-                      <p className="text-xs">Click to open</p>
-                    </div>
-                  </div>
                 ) : (
                   <div className="h-full overflow-hidden text-gray-600">
                     <div className="line-clamp-5" dangerouslySetInnerHTML={{ __html: item.content }} />
@@ -215,10 +180,7 @@ const WorkspaceContent: React.FC<WorkspaceContentProps> = ({ viewMode = 'grid' }
                 )}
               </CardContent>
               <CardFooter className="p-4 pt-2 border-t text-xs text-gray-500">
-                <div className="flex items-center justify-between w-full">
-                  <span>Updated {formatDate(item.updatedAt)}</span>
-                  <span className="capitalize">{item.type}</span>
-                </div>
+                Updated {formatDate(item.updatedAt)}
               </CardFooter>
             </Card>
           ))}
@@ -226,15 +188,7 @@ const WorkspaceContent: React.FC<WorkspaceContentProps> = ({ viewMode = 'grid' }
       ) : (
         <div className="space-y-2">
           {filteredItems.map((item) => (
-            <Card key={item.id} onClick={() => {
-              if (item.type === 'note') {
-                openEditor(item);
-              } else if (item.type === 'drawing') {
-                openEditor(item);
-              } else {
-                openPreview(item);
-              }
-            }}>
+            <Card key={item.id} onClick={() => item.type === 'note' ? openEditor(item) : openPreview(item)}>
               <div className="p-3 flex items-center justify-between cursor-pointer">
                 <div className="overflow-hidden">
                   <h3 className="text-base font-medium">{item.title}</h3>
@@ -312,7 +266,7 @@ const WorkspaceContent: React.FC<WorkspaceContentProps> = ({ viewMode = 'grid' }
       )}
 
       {/* Rich text editor dialog */}
-      {editingItem && editingItem.type === 'note' && (
+      {editingItem && (
         <Dialog open={!!editingItem} onOpenChange={(open) => !open && closeEditor()}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -333,56 +287,6 @@ const WorkspaceContent: React.FC<WorkspaceContentProps> = ({ viewMode = 'grid' }
             <DialogFooter>
               <Button variant="outline" onClick={closeEditor}>Cancel</Button>
               <Button onClick={saveEditedContent}>Save Changes</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Drawing editor dialog */}
-      {editingItem && editingItem.type === 'drawing' && (
-        <Dialog open={!!editingItem} onOpenChange={(open) => !open && closeEditor()}>
-          <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Edit Drawing: {editingItem.title}</DialogTitle>
-            </DialogHeader>
-            
-            <div className="my-4 h-[70vh]">
-              <ExcalidrawEditor
-                initialData={editingItem.content}
-                onSave={setEditDrawingContent}
-              />
-            </div>
-            
-            <DialogFooter>
-              <Button variant="outline" onClick={closeEditor}>Cancel</Button>
-              <Button onClick={saveEditedContent}>Save Changes</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Drawing preview dialog */}
-      {previewItem && previewItem.type === 'drawing' && (
-        <Dialog open={!!previewItem} onOpenChange={() => closePreview()}>
-          <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{previewItem.title}</DialogTitle>
-            </DialogHeader>
-            
-            <div className="my-4 h-[70vh]">
-              <ExcalidrawEditor
-                initialData={previewItem.content}
-                readOnly={true}
-              />
-            </div>
-            
-            <DialogFooter>
-              <p className="text-xs text-gray-500">
-                Created: {formatDate(previewItem.createdAt)}
-                {previewItem.createdAt !== previewItem.updatedAt && 
-                  ` • Updated: ${formatDate(previewItem.updatedAt)}`}
-              </p>
-              <Button onClick={closePreview}>Close</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
