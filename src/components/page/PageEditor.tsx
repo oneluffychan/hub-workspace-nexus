@@ -4,10 +4,9 @@ import { useWorkspace } from '@/contexts/WorkspaceContext';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Paperclip, Image, Copy, Paste, Save } from 'lucide-react';
+import { Paperclip, Image, Copy, Save } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 
@@ -96,12 +95,11 @@ const PageEditor: React.FC<PageEditorProps> = ({
     try {
       const reader = new FileReader();
       reader.onload = async (e) => {
-        if (e.target?.result) {
-          const imageData = e.target.result as string;
-          const attachment = await addAttachment(workspaceId, pageId, imageData, file.name);
-          if (attachment) {
-            setHasChanges(true);
-          }
+        const result = e.target?.result;
+        if (result) {
+          const imageData = result as string;
+          await addAttachment(workspaceId, pageId, imageData, file.name);
+          setHasChanges(true);
         }
       };
       reader.readAsDataURL(file);
@@ -167,7 +165,7 @@ const PageEditor: React.FC<PageEditorProps> = ({
                 size="sm"
                 onClick={handlePasteFromClipboard}
               >
-                <Paste size={16} className="mr-2" />
+                <Copy size={16} className="mr-2" />
                 Paste
               </Button>
               <Button 

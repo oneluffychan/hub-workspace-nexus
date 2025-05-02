@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
@@ -49,7 +50,7 @@ interface WorkspaceContextType {
   addContentItem: (workspaceId: string, item: Omit<ContentItem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateContentItem: (workspaceId: string, itemId: string, updates: Partial<ContentItem>) => Promise<void>;
   deleteContentItem: (workspaceId: string, itemId: string) => Promise<void>;
-  // New page methods
+  // Page methods
   createPage: (workspaceId: string, title: string) => Promise<void>;
   updatePage: (workspaceId: string, pageId: string, updates: Partial<Omit<Page, 'id' | 'createdAt'>>) => Promise<void>;
   deletePage: (workspaceId: string, pageId: string) => Promise<void>;
@@ -123,21 +124,43 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             // Fetch pages for this workspace
             const { data: pagesData, error: pagesError } = await supabase
               .from('pages')
-              .select('*, attachments(*)')
+              .select('*')
               .eq('workspace_id', workspace.id)
               .order('created_at', { ascending: true });
             
-            const pages = pagesError ? [] : (pagesData || []).map(page => ({
+            // Fetch attachments for all pages
+            let allAttachments: Record<string, any[]> = {};
+            if (pagesData?.length > 0) {
+              const pageIds = pagesData.map(page => page.id);
+              const { data: attachmentsData } = await supabase
+                .from('attachments')
+                .select('*')
+                .in('page_id', pageIds);
+              
+              if (attachmentsData) {
+                // Group attachments by page_id
+                allAttachments = attachmentsData.reduce((acc, attachment) => {
+                  const pageId = attachment.page_id;
+                  if (!acc[pageId]) {
+                    acc[pageId] = [];
+                  }
+                  acc[pageId].push(attachment);
+                  return acc;
+                }, {} as Record<string, any[]>);
+              }
+            }
+            
+            const pages = pagesError || !pagesData ? [] : pagesData.map(page => ({
               id: page.id,
               title: page.title,
               content: page.content || '',
-              attachments: page.attachments ? page.attachments.map((att: any) => ({
+              attachments: (allAttachments[page.id] || []).map((att) => ({
                 id: att.id,
                 type: 'image' as const,
                 url: att.url,
                 name: att.name,
                 createdAt: att.created_at
-              })) : [],
+              })),
               createdAt: page.created_at,
               updatedAt: page.updated_at
             }));

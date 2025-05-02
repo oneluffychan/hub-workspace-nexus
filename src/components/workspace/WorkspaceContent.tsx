@@ -86,7 +86,7 @@ const WorkspaceContent: React.FC = () => {
                   <div 
                     className={`flex items-center justify-between px-2 py-2 rounded-md ${
                       currentWorkspace.currentPageId === page.id ? 'bg-gray-100' : 'hover:bg-gray-50'
-                    } cursor-pointer`}
+                    } cursor-pointer group`}
                   >
                     <button 
                       className="flex items-center text-left w-full overflow-hidden"
