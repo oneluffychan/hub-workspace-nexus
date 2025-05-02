@@ -60,14 +60,19 @@ const ExcalidrawEditor: React.FC<ExcalidrawEditorProps> = ({
       saveDrawing();
       
       // Set up event listener for changes
-      const onPointerUp = () => {
+      // Use a safer approach with the proper event binding that TypeScript recognizes
+      const onChangeHandler = () => {
         saveDrawing();
       };
       
-      excalidrawAPI.addListener("pointerup", onPointerUp);
+      // Modern way to add event listeners in Excalidraw
+      excalidrawAPI.onChange = onChangeHandler;
       
       return () => {
-        excalidrawAPI.removeListener("pointerup", onPointerUp);
+        // Clean up the event handler when component unmounts
+        if (excalidrawAPI) {
+          excalidrawAPI.onChange = null;
+        }
       };
     }
   }, [excalidrawAPI, onSave, readOnly]);
