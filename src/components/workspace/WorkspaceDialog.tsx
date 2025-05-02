@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import {
@@ -15,7 +16,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
-import ExcalidrawEditor from '@/components/drawing/ExcalidrawEditor';
 
 export type WorkspaceDialogMode = 'create' | 'rename' | 'delete' | 'add-item';
 
@@ -37,12 +37,10 @@ const WorkspaceDialog: React.FC<WorkspaceDialogProps> = ({
   const [name, setName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [itemType, setItemType] = useState<'note' | 'image' | 'drawing'>('note');
+  const [itemType, setItemType] = useState<'note' | 'image'>('note');
   const [noteTitle, setNoteTitle] = useState('');
   const [noteContent, setNoteContent] = useState('');
   const [imageTitle, setImageTitle] = useState('');
-  const [drawingTitle, setDrawingTitle] = useState('');
-  const [drawingContent, setDrawingContent] = useState('');
   
   useEffect(() => {
     if (mode === 'rename' && workspaceId) {
@@ -81,13 +79,6 @@ const WorkspaceDialog: React.FC<WorkspaceDialogProps> = ({
             type: 'image',
             title: imageTitle,
             content: imagePreview,
-          });
-        } else if (itemType === 'drawing') {
-          if (!drawingTitle.trim()) return;
-          await addContentItem(currentWorkspace.id, {
-            type: 'drawing',
-            title: drawingTitle,
-            content: drawingContent,
           });
         }
       }
@@ -160,15 +151,14 @@ const WorkspaceDialog: React.FC<WorkspaceDialogProps> = ({
           <DialogHeader>
             <DialogTitle>Add New Item</DialogTitle>
             <DialogDescription>
-              Create a new note, upload an image, or create a drawing.
+              Create a new note or upload an image.
             </DialogDescription>
           </DialogHeader>
           
-          <Tabs defaultValue="note" className="w-full" onValueChange={(value) => setItemType(value as 'note' | 'image' | 'drawing')}>
-            <TabsList className="grid w-full grid-cols-3">
+          <Tabs defaultValue="note" className="w-full" onValueChange={(value) => setItemType(value as 'note' | 'image')}>
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="note">Note</TabsTrigger>
               <TabsTrigger value="image">Image</TabsTrigger>
-              <TabsTrigger value="drawing">Drawing</TabsTrigger>
             </TabsList>
             
             <TabsContent value="note" className="space-y-4 pt-4">
@@ -227,26 +217,6 @@ const WorkspaceDialog: React.FC<WorkspaceDialogProps> = ({
                 </div>
               )}
             </TabsContent>
-
-            <TabsContent value="drawing" className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label htmlFor="drawingTitle">Title</Label>
-                <Input
-                  id="drawingTitle"
-                  placeholder="Enter drawing title"
-                  value={drawingTitle}
-                  onChange={(e) => setDrawingTitle(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="drawing">Create Drawing</Label>
-                <div className="border rounded-md h-[400px] overflow-hidden">
-                  <ExcalidrawEditor
-                    onSave={setDrawingContent}
-                  />
-                </div>
-              </div>
-            </TabsContent>
           </Tabs>
           
           <DialogFooter>
@@ -261,8 +231,7 @@ const WorkspaceDialog: React.FC<WorkspaceDialogProps> = ({
               onClick={handleSubmit} 
               disabled={isSubmitting || (
                 itemType === 'note' ? (!noteTitle || !noteContent) : 
-                itemType === 'image' ? (!imageTitle || !imagePreview) : 
-                (!drawingTitle)
+                (!imageTitle || !imagePreview)
               )}
             >
               {isSubmitting ? 'Adding...' : 'Add Item'}

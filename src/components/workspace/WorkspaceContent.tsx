@@ -1,24 +1,17 @@
+
 import React, { useState } from 'react';
-import { useWorkspace, ContentItem } from '@/contexts/WorkspaceContext';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Trash2, Search } from 'lucide-react';
+import { Trash2, Search, Plus, File } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import ReactQuill from 'react-quill';
-import ExcalidrawEditor from '@/components/drawing/ExcalidrawEditor';
-import 'react-quill/dist/quill.snow.css';
+import PageEditor from '@/components/page/PageEditor';
 
 const WorkspaceContent: React.FC = () => {
-  const { currentWorkspace, deleteContentItem, updateContentItem } = useWorkspace();
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const { currentWorkspace, createPage, deletePage, selectPage } = useWorkspace();
   const [searchQuery, setSearchQuery] = useState('');
-  const [itemToDelete, setItemToDelete] = useState<ContentItem | null>(null);
+  const [pageToDelete, setPageToDelete] = useState<string | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [previewItem, setPreviewItem] = useState<ContentItem | null>(null);
-  const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
-  const [editContent, setEditContent] = useState('');
   
   if (!currentWorkspace) {
     return (
@@ -31,209 +24,118 @@ const WorkspaceContent: React.FC = () => {
     );
   }
   
-  if (currentWorkspace.items.length === 0) {
-    return (
-      <div className="h-full flex items-center justify-center flex-col space-y-4">
-        <div className="text-center">
-          <h2 className="text-2xl font-semibold text-gray-800">This workspace is empty</h2>
-          <p className="text-gray-500 mt-2">Add content to get started</p>
-        </div>
-      </div>
-    );
-  }
+  const currentPage = currentWorkspace.pages.find(page => page.id === currentWorkspace.currentPageId);
   
-  // Filter items based on search query
-  const filteredItems = searchQuery
-    ? currentWorkspace.items.filter(item =>
-        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.type === 'note' && item.content.toLowerCase().includes(searchQuery.toLowerCase()))
+  // Filter pages based on search query
+  const filteredPages = searchQuery
+    ? currentWorkspace.pages.filter(page =>
+        page.title.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : currentWorkspace.items;
+    : currentWorkspace.pages;
   
-  const handleDelete = async () => {
-    if (!itemToDelete || !currentWorkspace) return;
-    
-    try {
-      await deleteContentItem(currentWorkspace.id, itemToDelete.id);
-      setIsDeleteDialogOpen(false);
-      setItemToDelete(null);
-    } catch (error) {
-      console.error("Failed to delete item:", error);
-    }
+  const handleCreatePage = async () => {
+    if (!currentWorkspace) return;
+    await createPage(currentWorkspace.id, "Untitled Page");
   };
   
-  const confirmDelete = (item: ContentItem) => {
-    setItemToDelete(item);
+  const handleSelectPage = (pageId: string) => {
+    if (!currentWorkspace) return;
+    selectPage(currentWorkspace.id, pageId);
+  };
+
+  const handleDeleteClick = (pageId: string) => {
+    setPageToDelete(pageId);
     setIsDeleteDialogOpen(true);
   };
-  
-  const openPreview = (item: ContentItem) => {
-    setPreviewItem(item);
-  };
-  
-  const closePreview = () => {
-    setPreviewItem(null);
-  };
 
-  const openEditor = (item: ContentItem) => {
-    setEditingItem(item);
-    setEditContent(item.content);
+  const handleDeleteConfirm = async () => {
+    if (!pageToDelete || !currentWorkspace) return;
+    
+    await deletePage(currentWorkspace.id, pageToDelete);
+    setIsDeleteDialogOpen(false);
+    setPageToDelete(null);
   };
-
-  const closeEditor = () => {
-    setEditingItem(null);
-    setEditContent('');
-  };
-
-  const saveEditedContent = async () => {
-    if (!editingItem || !currentWorkspace) return;
-
-    try {
-      await updateContentItem(currentWorkspace.id, editingItem.id, {
-        ...editingItem,
-        content: editContent,
-        updatedAt: new Date().toISOString()
-      });
-      closeEditor();
-    } catch (error) {
-      console.error("Failed to update item:", error);
-    }
-  };
-  
-  const formatDate = (dateString: string) => {
-    const options: Intl.DateTimeFormatOptions = { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric'
-    };
-    return new Date(dateString).toLocaleDateString(undefined, options);
-  };
-
-  // Quill editor modules and formats
-  const modules = {
-    toolbar: [
-      ['bold', 'italic', 'underline', 'strike'],
-      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-      ['link', 'image', 'code-block'],
-      [{ 'header': [1, 2, 3, false] }],
-    ],
-  };
-
-  const formats = [
-    'header',
-    'bold', 'italic', 'underline', 'strike',
-    'list', 'bullet',
-    'link', 'image', 'code-block'
-  ];
   
   return (
-    <div className="space-y-6">
-      <div className="flex items-center space-x-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-          <Input
-            placeholder="Search content..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8"
-          />
+    <div className="flex h-full">
+      {/* Sidebar with pages */}
+      <div className="w-64 border-r bg-white p-4 flex flex-col h-full">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-medium">Pages</h3>
+          <Button variant="ghost" size="sm" onClick={handleCreatePage}>
+            <Plus size={16} />
+          </Button>
+        </div>
+        
+        <Input
+          placeholder="Search pages..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="mb-4"
+        />
+        
+        <div className="flex-1 overflow-y-auto">
+          {filteredPages.length === 0 ? (
+            <div className="text-center py-4 text-sm text-gray-500">
+              No pages found
+            </div>
+          ) : (
+            <ul className="space-y-1">
+              {filteredPages.map(page => (
+                <li key={page.id}>
+                  <div 
+                    className={`flex items-center justify-between px-2 py-2 rounded-md ${
+                      currentWorkspace.currentPageId === page.id ? 'bg-gray-100' : 'hover:bg-gray-50'
+                    } cursor-pointer`}
+                  >
+                    <button 
+                      className="flex items-center text-left w-full overflow-hidden"
+                      onClick={() => handleSelectPage(page.id)}
+                    >
+                      <File size={16} className="mr-2 flex-shrink-0" />
+                      <span className="truncate">{page.title}</span>
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteClick(page.id);
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
       
-      {filteredItems.length === 0 ? (
-        <div className="text-center py-10">
-          <p className="text-gray-500">No items match your search</p>
-        </div>
-      ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredItems.map((item) => (
-            <Card key={item.id} className="overflow-hidden h-[280px] flex flex-col">
-              <CardHeader className="p-4 pb-2">
-                <div className="flex items-start justify-between">
-                  <CardTitle className="text-lg truncate">{item.title}</CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0 text-gray-500 hover:text-destructive"
-                    onClick={() => confirmDelete(item)}
-                  >
-                    <Trash2 size={16} />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent 
-                className="p-4 pt-2 flex-1 overflow-hidden cursor-pointer" 
-                onClick={() => {
-                  if (item.type === 'note') openEditor(item);
-                  else if (item.type === 'drawing') openEditor(item);
-                  else openPreview(item);
-                }}
-              >
-                {item.type === 'image' ? (
-                  <div className="h-full flex items-center justify-center bg-gray-100 rounded">
-                    <img
-                      src={item.content}
-                      alt={item.title}
-                      className="max-h-full max-w-full object-contain"
-                    />
-                  </div>
-                ) : item.type === 'drawing' ? (
-                  <div className="h-full flex items-center justify-center bg-gray-100 rounded">
-                    <div className="text-center text-gray-500">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
-                        <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
-                        <path d="M2 2l7.586 7.586"></path>
-                        <circle cx="11" cy="11" r="2"></circle>
-                      </svg>
-                      <p className="mt-2">Click to open drawing</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="h-full overflow-hidden text-gray-600">
-                    <div className="line-clamp-5" dangerouslySetInnerHTML={{ __html: item.content }} />
-                  </div>
-                )}
-              </CardContent>
-              <CardFooter className="p-4 pt-2 border-t text-xs text-gray-500">
-                Updated {formatDate(item.updatedAt)}
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filteredItems.map((item) => (
-            <Card key={item.id} onClick={() => {
-              if (item.type === 'note') openEditor(item);
-              else if (item.type === 'drawing') openEditor(item);
-              else openPreview(item);
-            }}>
-              <div className="p-3 flex items-center justify-between cursor-pointer">
-                <div className="overflow-hidden">
-                  <h3 className="text-base font-medium">{item.title}</h3>
-                  <div className="text-xs text-gray-500 flex items-center">
-                    <span className="capitalize">{item.type}</span>
-                    <span className="mx-1">•</span>
-                    <span>Updated {formatDate(item.updatedAt)}</span>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 text-gray-500 hover:text-destructive"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    confirmDelete(item);
-                  }}
-                >
-                  <Trash2 size={16} />
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
+      {/* Main content area */}
+      <div className="flex-1 p-6 overflow-y-auto">
+        {currentPage ? (
+          <PageEditor
+            workspaceId={currentWorkspace.id}
+            pageId={currentPage.id}
+            title={currentPage.title}
+            content={currentPage.content}
+            attachments={currentPage.attachments}
+          />
+        ) : (
+          <div className="h-full flex items-center justify-center flex-col space-y-4">
+            <div className="text-center">
+              <h2 className="text-2xl font-semibold text-gray-800">No page selected</h2>
+              <p className="text-gray-500 mt-2">Select or create a page to get started</p>
+              <Button onClick={handleCreatePage} className="mt-4">
+                Create a page
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
       
       {/* Delete confirmation dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -241,85 +143,17 @@ const WorkspaceContent: React.FC = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete this item.
+              This action cannot be undone. This will permanently delete this page and all of its content.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      
-      {/* Item preview dialog */}
-      {previewItem && (
-        <Dialog open={!!previewItem} onOpenChange={() => closePreview()}>
-          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{previewItem.title}</DialogTitle>
-            </DialogHeader>
-            
-            {previewItem.type === 'image' ? (
-              <div className="flex justify-center my-4 bg-gray-50 rounded">
-                <img
-                  src={previewItem.content}
-                  alt={previewItem.title}
-                  className="max-h-[60vh] max-w-full object-contain"
-                />
-              </div>
-            ) : (
-              <div className="my-4 whitespace-pre-wrap text-gray-700" dangerouslySetInnerHTML={{ __html: previewItem.content }} />
-            )}
-            
-            <DialogFooter>
-              <p className="text-xs text-gray-500">
-                Created: {formatDate(previewItem.createdAt)}
-                {previewItem.createdAt !== previewItem.updatedAt && 
-                  ` • Updated: ${formatDate(previewItem.updatedAt)}`}
-              </p>
-              <Button onClick={closePreview}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Rich text editor dialog */}
-      {editingItem && (
-        <Dialog open={!!editingItem} onOpenChange={(open) => !open && closeEditor()}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Edit: {editingItem.title}</DialogTitle>
-            </DialogHeader>
-            
-            {editingItem.type === 'drawing' ? (
-              <div className="my-4 h-[60vh]">
-                <ExcalidrawEditor 
-                  initialData={editingItem.content} 
-                  onSave={setEditContent}
-                />
-              </div>
-            ) : (
-              <div className="my-4">
-                <ReactQuill
-                  theme="snow"
-                  value={editContent}
-                  onChange={setEditContent}
-                  modules={modules}
-                  formats={formats}
-                  className="h-[50vh] mb-12"
-                />
-              </div>
-            )}
-            
-            <DialogFooter>
-              <Button variant="outline" onClick={closeEditor}>Cancel</Button>
-              <Button onClick={saveEditedContent}>Save Changes</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 };

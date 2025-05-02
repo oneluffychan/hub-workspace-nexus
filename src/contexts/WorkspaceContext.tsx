@@ -6,9 +6,24 @@ import { v4 as uuidv4 } from 'uuid';
 
 export interface ContentItem {
   id: string;
-  type: 'note' | 'image' | 'drawing';
+  type: 'note' | 'image';
   title: string;
   content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Page {
+  id: string;
+  title: string;
+  content: string;
+  attachments: {
+    id: string;
+    type: 'image';
+    url: string;
+    name: string;
+    createdAt: string;
+  }[];
   createdAt: string;
   updatedAt: string;
 }
@@ -19,6 +34,8 @@ export interface Workspace {
   createdAt: string;
   updatedAt: string;
   items: ContentItem[];
+  pages: Page[];
+  currentPageId?: string;
 }
 
 interface WorkspaceContextType {
@@ -32,6 +49,13 @@ interface WorkspaceContextType {
   addContentItem: (workspaceId: string, item: Omit<ContentItem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateContentItem: (workspaceId: string, itemId: string, updates: Partial<ContentItem>) => Promise<void>;
   deleteContentItem: (workspaceId: string, itemId: string) => Promise<void>;
+  // New page methods
+  createPage: (workspaceId: string, title: string) => Promise<void>;
+  updatePage: (workspaceId: string, pageId: string, updates: Partial<Omit<Page, 'id' | 'createdAt'>>) => Promise<void>;
+  deletePage: (workspaceId: string, pageId: string) => Promise<void>;
+  selectPage: (workspaceId: string, pageId: string) => void;
+  addAttachment: (workspaceId: string, pageId: string, imageData: string, name: string) => Promise<void>;
+  removeAttachment: (workspaceId: string, pageId: string, attachmentId: string) => Promise<void>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
@@ -91,27 +115,52 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 name: workspace.name,
                 createdAt: workspace.created_at,
                 updatedAt: workspace.updated_at,
-                items: []
+                items: [],
+                pages: []
               };
             }
+
+            // Fetch pages for this workspace
+            const { data: pagesData, error: pagesError } = await supabase
+              .from('pages')
+              .select('*, attachments(*)')
+              .eq('workspace_id', workspace.id)
+              .order('created_at', { ascending: true });
+            
+            const pages = pagesError ? [] : (pagesData || []).map(page => ({
+              id: page.id,
+              title: page.title,
+              content: page.content || '',
+              attachments: page.attachments ? page.attachments.map((att: any) => ({
+                id: att.id,
+                type: 'image' as const,
+                url: att.url,
+                name: att.name,
+                createdAt: att.created_at
+              })) : [],
+              createdAt: page.created_at,
+              updatedAt: page.updated_at
+            }));
 
             // Transform content items
             const items = itemsData.map(item => ({
               id: item.id,
-              type: item.type as 'note' | 'image' | 'drawing',
+              type: item.type as 'note' | 'image',
               title: item.title,
               content: item.content,
               createdAt: item.created_at,
               updatedAt: item.updated_at
             }));
 
-            // Return workspace with its items
+            // Return workspace with its items and pages
             return {
               id: workspace.id,
               name: workspace.name,
               createdAt: workspace.created_at,
               updatedAt: workspace.updated_at,
-              items
+              items,
+              pages,
+              currentPageId: pages.length > 0 ? pages[0].id : undefined
             };
           })
         );
@@ -155,13 +204,39 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         throw error;
       }
       
+      // Create default page for the new workspace
+      const defaultPageTitle = "Untitled Page";
+      const { data: pageData, error: pageError } = await supabase
+        .from('pages')
+        .insert({
+          workspace_id: newWorkspace.id,
+          title: defaultPageTitle,
+          content: ""
+        })
+        .select()
+        .single();
+
+      if (pageError) {
+        console.error("Error creating default page:", pageError);
+        // Continue even if page creation fails
+      }
+      
       // Create new workspace object
       const workspaceWithItems: Workspace = {
         id: newWorkspace.id,
         name: newWorkspace.name,
         createdAt: newWorkspace.created_at,
         updatedAt: newWorkspace.updated_at,
-        items: []
+        items: [],
+        pages: pageData ? [{
+          id: pageData.id,
+          title: pageData.title,
+          content: pageData.content || "",
+          attachments: [],
+          createdAt: pageData.created_at,
+          updatedAt: pageData.updated_at
+        }] : [],
+        currentPageId: pageData?.id
       };
       
       const updatedWorkspaces = [...workspaces, workspaceWithItems];
@@ -263,7 +338,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  // Add a new content item (note, image, or drawing) to a workspace
+  // Add a new content item (note or image) to a workspace
   const addContentItem = async (workspaceId: string, item: Omit<ContentItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     setIsLoading(true);
     try {
@@ -286,7 +361,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Create new content item object
       const contentItem: ContentItem = {
         id: newItem.id,
-        type: newItem.type as 'note' | 'image' | 'drawing',
+        type: newItem.type as 'note' | 'image',
         title: newItem.title,
         content: newItem.content,
         createdAt: newItem.created_at,
@@ -447,6 +522,360 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  // Create a new page in a workspace
+  const createPage = async (workspaceId: string, title: string) => {
+    setIsLoading(true);
+    try {
+      const { data: pageData, error } = await supabase
+        .from('pages')
+        .insert({
+          workspace_id: workspaceId,
+          title,
+          content: ""
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      const newPage: Page = {
+        id: pageData.id,
+        title: pageData.title,
+        content: pageData.content || "",
+        attachments: [],
+        createdAt: pageData.created_at,
+        updatedAt: pageData.updated_at
+      };
+
+      // Update local state
+      const updatedWorkspaces = workspaces.map(workspace => {
+        if (workspace.id === workspaceId) {
+          return {
+            ...workspace,
+            pages: [...workspace.pages, newPage],
+            currentPageId: newPage.id,
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return workspace;
+      });
+
+      setWorkspaces(updatedWorkspaces);
+
+      // Update current workspace if it's the one being modified
+      if (currentWorkspace?.id === workspaceId) {
+        setCurrentWorkspace({
+          ...currentWorkspace,
+          pages: [...currentWorkspace.pages, newPage],
+          currentPageId: newPage.id,
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      toast.success("Page created");
+    } catch (error) {
+      console.error("Error creating page:", error);
+      toast.error("Failed to create page");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Update a page in a workspace
+  const updatePage = async (workspaceId: string, pageId: string, updates: Partial<Omit<Page, 'id' | 'createdAt'>>) => {
+    setIsLoading(true);
+    try {
+      // Prepare updates for Supabase
+      const supabaseUpdates: Record<string, any> = {};
+      if (updates.title !== undefined) supabaseUpdates.title = updates.title;
+      if (updates.content !== undefined) supabaseUpdates.content = updates.content;
+
+      const { error } = await supabase
+        .from('pages')
+        .update(supabaseUpdates)
+        .eq('id', pageId)
+        .eq('workspace_id', workspaceId);
+
+      if (error) {
+        throw error;
+      }
+
+      const timestamp = new Date().toISOString();
+
+      // Update local state
+      const updatedWorkspaces = workspaces.map(workspace => {
+        if (workspace.id === workspaceId) {
+          return {
+            ...workspace,
+            pages: workspace.pages.map(page => {
+              if (page.id === pageId) {
+                return {
+                  ...page,
+                  ...updates,
+                  updatedAt: timestamp
+                };
+              }
+              return page;
+            }),
+            updatedAt: timestamp
+          };
+        }
+        return workspace;
+      });
+
+      setWorkspaces(updatedWorkspaces);
+
+      // Update current workspace if it's the one being modified
+      if (currentWorkspace?.id === workspaceId) {
+        setCurrentWorkspace({
+          ...currentWorkspace,
+          pages: currentWorkspace.pages.map(page => {
+            if (page.id === pageId) {
+              return {
+                ...page,
+                ...updates,
+                updatedAt: timestamp
+              };
+            }
+            return page;
+          }),
+          updatedAt: timestamp
+        });
+      }
+
+      toast.success("Page updated");
+    } catch (error) {
+      console.error("Error updating page:", error);
+      toast.error("Failed to update page");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Delete a page from a workspace
+  const deletePage = async (workspaceId: string, pageId: string) => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from('pages')
+        .delete()
+        .eq('id', pageId)
+        .eq('workspace_id', workspaceId);
+
+      if (error) {
+        throw error;
+      }
+
+      const timestamp = new Date().toISOString();
+
+      // Update local state
+      const updatedWorkspaces = workspaces.map(workspace => {
+        if (workspace.id === workspaceId) {
+          const filteredPages = workspace.pages.filter(page => page.id !== pageId);
+          return {
+            ...workspace,
+            pages: filteredPages,
+            currentPageId: filteredPages.length > 0 ? 
+              (workspace.currentPageId === pageId ? filteredPages[0].id : workspace.currentPageId) : 
+              undefined,
+            updatedAt: timestamp
+          };
+        }
+        return workspace;
+      });
+
+      setWorkspaces(updatedWorkspaces);
+
+      // Update current workspace if it's the one being modified
+      if (currentWorkspace?.id === workspaceId) {
+        const filteredPages = currentWorkspace.pages.filter(page => page.id !== pageId);
+        setCurrentWorkspace({
+          ...currentWorkspace,
+          pages: filteredPages,
+          currentPageId: filteredPages.length > 0 ? 
+            (currentWorkspace.currentPageId === pageId ? filteredPages[0].id : currentWorkspace.currentPageId) : 
+            undefined,
+          updatedAt: timestamp
+        });
+      }
+
+      toast.success("Page deleted");
+    } catch (error) {
+      console.error("Error deleting page:", error);
+      toast.error("Failed to delete page");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Select a page in a workspace
+  const selectPage = (workspaceId: string, pageId: string) => {
+    // Update local state
+    const updatedWorkspaces = workspaces.map(workspace => {
+      if (workspace.id === workspaceId) {
+        return {
+          ...workspace,
+          currentPageId: pageId
+        };
+      }
+      return workspace;
+    });
+
+    setWorkspaces(updatedWorkspaces);
+
+    // Update current workspace if it's the one being modified
+    if (currentWorkspace?.id === workspaceId) {
+      setCurrentWorkspace({
+        ...currentWorkspace,
+        currentPageId: pageId
+      });
+    }
+  };
+
+  // Add an attachment to a page
+  const addAttachment = async (workspaceId: string, pageId: string, imageData: string, name: string) => {
+    setIsLoading(true);
+    try {
+      const { data: attachmentData, error } = await supabase
+        .from('attachments')
+        .insert({
+          page_id: pageId,
+          url: imageData,
+          name,
+          type: 'image'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      const newAttachment = {
+        id: attachmentData.id,
+        type: 'image' as const,
+        url: attachmentData.url,
+        name: attachmentData.name,
+        createdAt: attachmentData.created_at
+      };
+
+      // Update local state
+      const updatedWorkspaces = workspaces.map(workspace => {
+        if (workspace.id === workspaceId) {
+          return {
+            ...workspace,
+            pages: workspace.pages.map(page => {
+              if (page.id === pageId) {
+                return {
+                  ...page,
+                  attachments: [...page.attachments, newAttachment],
+                  updatedAt: new Date().toISOString()
+                };
+              }
+              return page;
+            }),
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return workspace;
+      });
+
+      setWorkspaces(updatedWorkspaces);
+
+      // Update current workspace if it's the one being modified
+      if (currentWorkspace?.id === workspaceId) {
+        setCurrentWorkspace({
+          ...currentWorkspace,
+          pages: currentWorkspace.pages.map(page => {
+            if (page.id === pageId) {
+              return {
+                ...page,
+                attachments: [...page.attachments, newAttachment],
+                updatedAt: new Date().toISOString()
+              };
+            }
+            return page;
+          }),
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      toast.success("Attachment added");
+      return newAttachment;
+    } catch (error) {
+      console.error("Error adding attachment:", error);
+      toast.error("Failed to add attachment");
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Remove an attachment from a page
+  const removeAttachment = async (workspaceId: string, pageId: string, attachmentId: string) => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from('attachments')
+        .delete()
+        .eq('id', attachmentId);
+
+      if (error) {
+        throw error;
+      }
+
+      // Update local state
+      const updatedWorkspaces = workspaces.map(workspace => {
+        if (workspace.id === workspaceId) {
+          return {
+            ...workspace,
+            pages: workspace.pages.map(page => {
+              if (page.id === pageId) {
+                return {
+                  ...page,
+                  attachments: page.attachments.filter(att => att.id !== attachmentId),
+                  updatedAt: new Date().toISOString()
+                };
+              }
+              return page;
+            }),
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return workspace;
+      });
+
+      setWorkspaces(updatedWorkspaces);
+
+      // Update current workspace if it's the one being modified
+      if (currentWorkspace?.id === workspaceId) {
+        setCurrentWorkspace({
+          ...currentWorkspace,
+          pages: currentWorkspace.pages.map(page => {
+            if (page.id === pageId) {
+              return {
+                ...page,
+                attachments: page.attachments.filter(att => att.id !== attachmentId),
+                updatedAt: new Date().toISOString()
+              };
+            }
+            return page;
+          }),
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      toast.success("Attachment removed");
+    } catch (error) {
+      console.error("Error removing attachment:", error);
+      toast.error("Failed to remove attachment");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <WorkspaceContext.Provider value={{
       workspaces,
@@ -458,7 +887,13 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       selectWorkspace,
       addContentItem,
       updateContentItem,
-      deleteContentItem
+      deleteContentItem,
+      createPage,
+      updatePage,
+      deletePage,
+      selectPage,
+      addAttachment,
+      removeAttachment
     }}>
       {children}
     </WorkspaceContext.Provider>
