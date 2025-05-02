@@ -2,6 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { Excalidraw, exportToBlob } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
+import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types/types";
 import { Button } from "@/components/ui/button";
 import { Save } from "lucide-react";
 
@@ -53,7 +55,7 @@ const ExcalidrawEditor: React.FC<ExcalidrawEditorProps> = ({
     onSave(JSON.stringify(drawingData));
   };
 
-  // Save drawing automatically when the excalidrawAPI is set and on every change
+  // Save drawing automatically when the excalidrawAPI is set
   useEffect(() => {
     if (excalidrawAPI && onSave && !readOnly) {
       // Initial save to make sure we have content
@@ -61,8 +63,12 @@ const ExcalidrawEditor: React.FC<ExcalidrawEditorProps> = ({
     }
   }, [excalidrawAPI, onSave, readOnly]);
 
-  // Handle onChange event from Excalidraw
-  const handleChange = () => {
+  // Handle onChange event from Excalidraw with the correct parameter types
+  const handleChange = (
+    elements: readonly ExcalidrawElement[],
+    appState: AppState,
+    files: BinaryFiles
+  ) => {
     if (onSave && !readOnly) {
       saveDrawing();
     }
