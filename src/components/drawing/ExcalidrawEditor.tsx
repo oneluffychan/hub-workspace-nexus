@@ -53,29 +53,20 @@ const ExcalidrawEditor: React.FC<ExcalidrawEditorProps> = ({
     onSave(JSON.stringify(drawingData));
   };
 
-  // Save drawing automatically when the excalidrawAPI is set and on every pointer up action
+  // Save drawing automatically when the excalidrawAPI is set and on every change
   useEffect(() => {
     if (excalidrawAPI && onSave && !readOnly) {
       // Initial save to make sure we have content
       saveDrawing();
-      
-      // Set up event listener for changes
-      // Use a safer approach with the proper event binding that TypeScript recognizes
-      const onChangeHandler = () => {
-        saveDrawing();
-      };
-      
-      // Modern way to add event listeners in Excalidraw
-      excalidrawAPI.onChange = onChangeHandler;
-      
-      return () => {
-        // Clean up the event handler when component unmounts
-        if (excalidrawAPI) {
-          excalidrawAPI.onChange = null;
-        }
-      };
     }
   }, [excalidrawAPI, onSave, readOnly]);
+
+  // Handle onChange event from Excalidraw
+  const handleChange = () => {
+    if (onSave && !readOnly) {
+      saveDrawing();
+    }
+  };
 
   return (
     <div className="excalidraw-wrapper relative border rounded-md" style={{ height: readOnly ? '500px' : '70vh' }}>
@@ -83,6 +74,7 @@ const ExcalidrawEditor: React.FC<ExcalidrawEditorProps> = ({
         excalidrawAPI={(api) => setExcalidrawAPI(api)}
         initialData={initialContent || undefined}
         viewModeEnabled={readOnly}
+        onChange={handleChange}
       />
       
       {!readOnly && onSave && (
