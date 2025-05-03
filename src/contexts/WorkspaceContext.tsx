@@ -608,7 +608,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
                 content: newPage.content,
                 is_public: false,
               }
-            ]).then(({ pageError }) => {
+            ]).then(({ error: pageError }) => {
               if (pageError) {
                 console.error("Error creating page with image:", pageError);
                 return;
@@ -621,7 +621,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
                 url: newAttachment.url,
                 name: newAttachment.name,
                 type: "image"
-              }]).then(({ attachError }) => {
+              }]).then(({ error: attachError }) => {
                 if (attachError) console.error("Error creating attachment:", attachError);
               });
             });

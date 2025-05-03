@@ -87,6 +87,7 @@ export type Database = {
           content: string | null
           created_at: string | null
           id: string
+          is_public: boolean | null
           title: string
           updated_at: string | null
           workspace_id: string | null
@@ -95,6 +96,7 @@ export type Database = {
           content?: string | null
           created_at?: string | null
           id?: string
+          is_public?: boolean | null
           title: string
           updated_at?: string | null
           workspace_id?: string | null
@@ -103,6 +105,7 @@ export type Database = {
           content?: string | null
           created_at?: string | null
           id?: string
+          is_public?: boolean | null
           title?: string
           updated_at?: string | null
           workspace_id?: string | null
@@ -142,6 +145,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_public: boolean | null
           name: string
           updated_at: string
           user_id: string
@@ -149,6 +153,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          is_public?: boolean | null
           name: string
           updated_at?: string
           user_id: string
@@ -156,6 +161,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          is_public?: boolean | null
           name?: string
           updated_at?: string
           user_id?: string
