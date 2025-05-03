@@ -1,3 +1,4 @@
+
 import React, {
   createContext,
   useState,
@@ -98,7 +99,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
         const { data, error } = await supabase
           .from("workspaces")
           .select("*")
-          .order("createdAt", { ascending: false });
+          .order("created_at", { ascending: false });
 
         if (error) {
           console.error("Error fetching workspaces:", error);
@@ -111,20 +112,27 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
               const { data: pagesData, error: pagesError } = await supabase
                 .from("pages")
                 .select("*")
-                .eq("workspaceId", workspace.id)
-                .order("createdAt", { ascending: false });
+                .eq("workspace_id", workspace.id)
+                .order("created_at", { ascending: false });
 
               if (pagesError) {
                 console.error("Error fetching pages:", pagesError);
-                return { ...workspace, pages: [] };
+                return {
+                  id: workspace.id,
+                  name: workspace.name,
+                  createdAt: workspace.created_at,
+                  items: workspace.items || [],
+                  pages: [],
+                  currentPageId: undefined
+                };
               }
 
               const pages: Page[] = pagesData
                 ? pagesData.map((page) => ({
                     id: page.id,
                     title: page.title,
-                    content: page.content,
-                    createdAt: page.createdAt,
+                    content: page.content || "",
+                    createdAt: page.created_at,
                     attachments: page.attachments
                       ? (JSON.parse(page.attachments) as Attachment[])
                       : [],
@@ -134,10 +142,10 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
               return {
                 id: workspace.id,
                 name: workspace.name,
-                createdAt: workspace.createdAt,
-                items: workspace.items,
+                createdAt: workspace.created_at,
+                items: workspace.items || [],
                 pages: pages,
-                currentPageId: workspace.currentPageId,
+                currentPageId: undefined,
               };
             })
           );
@@ -167,8 +175,8 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
         {
           id: newWorkspace.id,
           name: newWorkspace.name,
-          createdAt: newWorkspace.createdAt,
-          items: [],
+          user_id: "3eb91ee4-dbcc-4691-a83a-3e5c0a364f09", // This should be dynamically set from auth context
+          items: []
         },
       ]);
 
@@ -247,11 +255,9 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
       const { error } = await supabase.from("pages").insert([
         {
           id: newPage.id,
-          workspaceId: workspaceId,
+          workspace_id: workspaceId,
           title: newPage.title,
           content: newPage.content,
-          createdAt: newPage.createdAt,
-          attachments: JSON.stringify([]), // Initialize as empty array
         },
       ]);
 
@@ -498,11 +504,9 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
             supabase.from("pages").insert([
               {
                 id: newPage.id,
-                workspaceId,
+                workspace_id: workspaceId,
                 title: newPage.title,
                 content: newPage.content,
-                createdAt: newPage.createdAt,
-                attachments: JSON.stringify([]),
               }
             ]).then(({ error }) => {
               if (error) console.error("Error creating page from content item:", error);
@@ -539,10 +543,9 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
             supabase.from("pages").insert([
               {
                 id: newPage.id,
-                workspaceId,
+                workspace_id: workspaceId,
                 title: newPage.title,
                 content: newPage.content,
-                createdAt: newPage.createdAt,
                 attachments: JSON.stringify([newAttachment]),
               }
             ]).then(({ error }) => {
