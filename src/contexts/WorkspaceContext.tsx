@@ -8,6 +8,8 @@ import React, {
 } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 // Define the types
 export type Attachment = {
@@ -24,6 +26,7 @@ export type Page = {
   content: string;
   createdAt: string;
   attachments: Attachment[];
+  isPublic?: boolean;
 };
 
 export type ContentItem = {
@@ -39,6 +42,7 @@ export type Workspace = {
   items: string[];
   pages: Page[];
   currentPageId?: string;
+  isPublic?: boolean;
 };
 
 type WorkspaceContextType = {
@@ -48,7 +52,7 @@ type WorkspaceContextType = {
   renameWorkspace: (id: string, newName: string) => Promise<void>;
   deleteWorkspace: (id: string) => Promise<void>;
   selectWorkspace: (id: string) => void;
-  createPage: (workspaceId: string, title: string) => Promise<void>;
+  createPage: (workspaceId: string, title: string) => Promise<string>;
   updatePage: (
     workspaceId: string,
     pageId: string,
@@ -71,6 +75,19 @@ type WorkspaceContextType = {
     workspaceId: string, 
     item: ContentItem
   ) => Promise<void>;
+  togglePagePublic: (
+    workspaceId: string,
+    pageId: string, 
+    isPublic: boolean
+  ) => Promise<void>;
+  toggleWorkspacePublic: (
+    workspaceId: string, 
+    isPublic: boolean
+  ) => Promise<void>;
+  getPageById: (pageId: string) => Page | null;
+  getWorkspaceById: (workspaceId: string) => Workspace | null;
+  navigateToWorkspace: (workspaceId: string) => void;
+  navigateToPage: (workspaceId: string, pageId: string) => void;
 };
 
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(
@@ -92,6 +109,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(
     null
   );
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchWorkspaces = async () => {
@@ -121,9 +139,10 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
                   id: workspace.id,
                   name: workspace.name,
                   createdAt: workspace.created_at,
-                  items: workspace.items || [],
+                  items: [], // Items column doesn't exist in the table, use empty array
                   pages: [],
-                  currentPageId: undefined
+                  currentPageId: undefined,
+                  isPublic: workspace.is_public || false,
                 };
               }
 
@@ -133,19 +152,37 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
                     title: page.title,
                     content: page.content || "",
                     createdAt: page.created_at,
-                    attachments: page.attachments
-                      ? (JSON.parse(page.attachments) as Attachment[])
-                      : [],
+                    attachments: [], // Attachments need to be fetched separately
+                    isPublic: page.is_public || false,
                   }))
                 : [];
+
+              // Fetch attachments for each page
+              for (const page of pages) {
+                const { data: attachmentsData } = await supabase
+                  .from("attachments")
+                  .select("*")
+                  .eq("page_id", page.id);
+                
+                if (attachmentsData) {
+                  page.attachments = attachmentsData.map(att => ({
+                    id: att.id,
+                    type: att.type as "image",
+                    url: att.url,
+                    name: att.name || "",
+                    createdAt: att.created_at,
+                  }));
+                }
+              }
 
               return {
                 id: workspace.id,
                 name: workspace.name,
                 createdAt: workspace.created_at,
-                items: workspace.items || [],
+                items: [], // Items column doesn't exist in the table, use empty array
                 pages: pages,
                 currentPageId: undefined,
+                isPublic: workspace.is_public || false,
               };
             })
           );
@@ -176,7 +213,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
           id: newWorkspace.id,
           name: newWorkspace.name,
           user_id: "3eb91ee4-dbcc-4691-a83a-3e5c0a364f09", // This should be dynamically set from auth context
-          items: []
+          is_public: false,
         },
       ]);
 
@@ -185,8 +222,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       setWorkspaces((prevWorkspaces) => [...prevWorkspaces, newWorkspace]);
+      toast.success("Workspace created successfully");
+      navigateToWorkspace(newId);
     } catch (error) {
       console.error("Error creating workspace:", error);
+      toast.error("Failed to create workspace");
     }
   };
 
@@ -210,8 +250,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
           workspace.id === id ? { ...workspace, name: newName } : workspace
         )
       );
+      
+      toast.success("Workspace renamed successfully");
     } catch (error) {
       console.error("Error renaming workspace:", error);
+      toast.error("Failed to rename workspace");
     }
   };
 
@@ -227,11 +270,16 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
       setWorkspaces((prevWorkspaces) =>
         prevWorkspaces.filter((workspace) => workspace.id !== id)
       );
+      
       if (currentWorkspace?.id === id) {
         setCurrentWorkspace(null);
+        navigate('/');
       }
+      
+      toast.success("Workspace deleted successfully");
     } catch (error) {
       console.error("Error deleting workspace:", error);
+      toast.error("Failed to delete workspace");
     }
   };
 
@@ -241,7 +289,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
     setCurrentWorkspace(selectedWorkspace || null);
   };
 
-  const createPage = async (workspaceId: string, title: string) => {
+  const createPage = async (workspaceId: string, title: string): Promise<string> => {
     const newPageId = uuidv4();
     const newPage: Page = {
       id: newPageId,
@@ -249,6 +297,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
       content: "",
       createdAt: new Date().toISOString(),
       attachments: [],
+      isPublic: false,
     };
 
     try {
@@ -258,6 +307,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
           workspace_id: workspaceId,
           title: newPage.title,
           content: newPage.content,
+          is_public: false,
         },
       ]);
 
@@ -272,11 +322,17 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
           return {
             ...workspace,
             pages: [...workspace.pages, newPage],
+            currentPageId: newPageId, // Auto-select the new page
           };
         });
       });
+      
+      toast.success("Page created successfully");
+      return newPageId;
     } catch (error) {
       console.error("Error creating page:", error);
+      toast.error("Failed to create page");
+      return "";
     }
   };
 
@@ -306,11 +362,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
       });
 
       // Construct the update object for Supabase
-      const supabaseUpdates: Partial<{
-        title: string;
-        content: string;
-        attachments: string; // Store attachments as a JSON string
-      }> = {};
+      const supabaseUpdates: any = {};
 
       if (updates.title !== undefined) {
         supabaseUpdates.title = updates.title;
@@ -318,8 +370,8 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
       if (updates.content !== undefined) {
         supabaseUpdates.content = updates.content;
       }
-      if (updates.attachments !== undefined) {
-        supabaseUpdates.attachments = JSON.stringify(updates.attachments); // Serialize attachments to JSON
+      if (updates.isPublic !== undefined) {
+        supabaseUpdates.is_public = updates.isPublic;
       }
 
       // Update the page in Supabase
@@ -333,6 +385,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     } catch (error) {
       console.error("Error updating page:", error);
+      toast.error("Failed to update page");
     }
   };
 
@@ -347,15 +400,24 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
       setWorkspaces((prevWorkspaces) => {
         return prevWorkspaces.map((workspace) => {
           if (workspace.id !== workspaceId) return workspace;
+          
+          const updatedPages = workspace.pages.filter(page => page.id !== pageId);
+          const updatedCurrentPageId = workspace.currentPageId === pageId
+            ? (updatedPages.length > 0 ? updatedPages[0].id : undefined)
+            : workspace.currentPageId;
 
           return {
             ...workspace,
-            pages: workspace.pages.filter((page) => page.id !== pageId),
+            pages: updatedPages,
+            currentPageId: updatedCurrentPageId,
           };
         });
       });
+      
+      toast.success("Page deleted successfully");
     } catch (error) {
       console.error("Error deleting page:", error);
+      toast.error("Failed to delete page");
     }
   };
 
@@ -387,6 +449,19 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
         createdAt: new Date().toISOString(),
       };
 
+      // Insert the attachment directly in the attachments table
+      const { error } = await supabase.from("attachments").insert([{
+        id: newAttachment.id,
+        page_id: pageId,
+        url: imageData,
+        name: name,
+        type: "image"
+      }]);
+      
+      if (error) {
+        throw error;
+      }
+
       // Optimistically update the local state
       setWorkspaces((prevWorkspaces) => {
         return prevWorkspaces.map((workspace) => {
@@ -405,24 +480,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
           };
         });
       });
-
-      // Get current attachments for updating in supabase
-      const currentWorkspace = workspaces.find(
-        (workspace) => workspace.id === workspaceId
-      );
-      const currentPage = currentWorkspace?.pages.find((page) => page.id === pageId);
-      const currentAttachments = currentPage?.attachments || [];
-
-      // Update the attachment in supabase
-      await supabase
-        .from("pages")
-        .update({
-          attachments: JSON.stringify([...currentAttachments, newAttachment]),
-        })
-        .eq("id", pageId);
+      
+      toast.success("Attachment added successfully");
     } catch (error) {
       console.error("Error adding attachment:", error);
-      throw error;
+      toast.error("Failed to add attachment");
     }
   };
 
@@ -432,6 +494,16 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
     attachmentId: string
   ): Promise<void> => {
     try {
+      // Delete the attachment from the attachments table
+      const { error } = await supabase
+        .from("attachments")
+        .delete()
+        .eq("id", attachmentId);
+      
+      if (error) {
+        throw error;
+      }
+
       // Optimistically update the local state
       setWorkspaces((prevWorkspaces) => {
         return prevWorkspaces.map((workspace) => {
@@ -452,26 +524,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
           };
         });
       });
-
-      // Get current attachments for updating in supabase
-      const currentWorkspace = workspaces.find(
-        (workspace) => workspace.id === workspaceId
-      );
-      const currentPage = currentWorkspace?.pages.find((page) => page.id === pageId);
-      const currentAttachments = currentPage?.attachments || [];
-
-      // Update the attachment in supabase
-      await supabase
-        .from("pages")
-        .update({
-          attachments: JSON.stringify(
-            currentAttachments.filter((attachment) => attachment.id !== attachmentId)
-          ),
-        })
-        .eq("id", pageId);
+      
+      toast.success("Attachment removed successfully");
     } catch (error) {
       console.error("Error removing attachment:", error);
-      throw error;
+      toast.error("Failed to remove attachment");
     }
   };
 
@@ -498,6 +555,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
               content: item.content,
               createdAt: new Date().toISOString(),
               attachments: [],
+              isPublic: false,
             };
             
             // Add to database
@@ -507,6 +565,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
                 workspace_id: workspaceId,
                 title: newPage.title,
                 content: newPage.content,
+                is_public: false,
               }
             ]).then(({ error }) => {
               if (error) console.error("Error creating page from content item:", error);
@@ -537,6 +596,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
               content: "",
               createdAt: new Date().toISOString(),
               attachments: [newAttachment],
+              isPublic: false,
             };
             
             // Add to database
@@ -546,10 +606,24 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
                 workspace_id: workspaceId,
                 title: newPage.title,
                 content: newPage.content,
-                attachments: JSON.stringify([newAttachment]),
+                is_public: false,
               }
-            ]).then(({ error }) => {
-              if (error) console.error("Error creating page with image:", error);
+            ]).then(({ pageError }) => {
+              if (pageError) {
+                console.error("Error creating page with image:", pageError);
+                return;
+              }
+              
+              // Insert attachment
+              supabase.from("attachments").insert([{
+                id: newAttachment.id,
+                page_id: newPageId,
+                url: newAttachment.url,
+                name: newAttachment.name,
+                type: "image"
+              }]).then(({ attachError }) => {
+                if (attachError) console.error("Error creating attachment:", attachError);
+              });
             });
             
             return {
@@ -562,9 +636,98 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
           return workspace;
         });
       });
+      
+      toast.success(`${item.type === "note" ? "Note" : "Image"} added successfully`);
     } catch (error) {
       console.error("Error adding content item:", error);
+      toast.error(`Failed to add ${item.type}`);
     }
+  };
+  
+  // Toggle page public/private status
+  const togglePagePublic = async (
+    workspaceId: string,
+    pageId: string,
+    isPublic: boolean
+  ): Promise<void> => {
+    try {
+      const { error } = await supabase
+        .from("pages")
+        .update({ is_public: isPublic })
+        .eq("id", pageId);
+        
+      if (error) throw error;
+      
+      setWorkspaces(prevWorkspaces => 
+        prevWorkspaces.map(workspace => {
+          if (workspace.id !== workspaceId) return workspace;
+          
+          return {
+            ...workspace,
+            pages: workspace.pages.map(page => {
+              if (page.id !== pageId) return page;
+              return { ...page, isPublic };
+            })
+          };
+        })
+      );
+      
+      toast.success(`Page is now ${isPublic ? 'public' : 'private'}`);
+    } catch (error) {
+      console.error("Error updating page visibility:", error);
+      toast.error("Failed to update page visibility");
+    }
+  };
+  
+  // Toggle workspace public/private status
+  const toggleWorkspacePublic = async (
+    workspaceId: string,
+    isPublic: boolean
+  ): Promise<void> => {
+    try {
+      const { error } = await supabase
+        .from("workspaces")
+        .update({ is_public: isPublic })
+        .eq("id", workspaceId);
+        
+      if (error) throw error;
+      
+      setWorkspaces(prevWorkspaces => 
+        prevWorkspaces.map(workspace => {
+          if (workspace.id !== workspaceId) return workspace;
+          return { ...workspace, isPublic };
+        })
+      );
+      
+      toast.success(`Workspace is now ${isPublic ? 'public' : 'private'}`);
+    } catch (error) {
+      console.error("Error updating workspace visibility:", error);
+      toast.error("Failed to update workspace visibility");
+    }
+  };
+  
+  // Helper methods for routing
+  const getPageById = (pageId: string): Page | null => {
+    for (const workspace of workspaces) {
+      const page = workspace.pages.find(p => p.id === pageId);
+      if (page) return page;
+    }
+    return null;
+  };
+  
+  const getWorkspaceById = (workspaceId: string): Workspace | null => {
+    return workspaces.find(w => w.id === workspaceId) || null;
+  };
+  
+  const navigateToWorkspace = (workspaceId: string) => {
+    selectWorkspace(workspaceId);
+    navigate(`/workspace/${workspaceId}`);
+  };
+  
+  const navigateToPage = (workspaceId: string, pageId: string) => {
+    selectWorkspace(workspaceId);
+    selectPage(workspaceId, pageId);
+    navigate(`/workspace/${workspaceId}/page/${pageId}`);
   };
 
   const value: WorkspaceContextType = {
@@ -581,6 +744,12 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
     addAttachment,
     removeAttachment,
     addContentItem,
+    togglePagePublic,
+    toggleWorkspacePublic,
+    getPageById,
+    getWorkspaceById,
+    navigateToWorkspace,
+    navigateToPage,
   };
 
   return (
