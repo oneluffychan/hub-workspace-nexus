@@ -30,6 +30,12 @@ export type Page = {
   attachments: Attachment[];
 };
 
+export type ContentItem = {
+  type: "note" | "image";
+  title: string;
+  content: string;
+};
+
 export type Workspace = {
   id: string;
   name: string;
@@ -64,6 +70,10 @@ type WorkspaceContextType = {
     workspaceId: string,
     pageId: string,
     attachmentId: string
+  ) => Promise<void>;
+  addContentItem: (
+    workspaceId: string, 
+    item: ContentItem
   ) => Promise<void>;
 };
 
@@ -464,6 +474,101 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  // Add content item function
+  const addContentItem = async (
+    workspaceId: string, 
+    item: ContentItem
+  ): Promise<void> => {
+    try {
+      // Implement database logic here if needed
+      console.log("Adding content item:", item);
+      
+      // Optimistic update of the UI
+      setWorkspaces((prevWorkspaces) => {
+        return prevWorkspaces.map((workspace) => {
+          if (workspace.id !== workspaceId) return workspace;
+          
+          // For note type items, create a new page
+          if (item.type === "note") {
+            const newPageId = uuidv4();
+            const newPage: Page = {
+              id: newPageId,
+              title: item.title,
+              content: item.content,
+              createdAt: new Date().toISOString(),
+              attachments: [],
+            };
+            
+            // Add to database
+            supabase.from("pages").insert([
+              {
+                id: newPage.id,
+                workspaceId,
+                title: newPage.title,
+                content: newPage.content,
+                createdAt: newPage.createdAt,
+                attachments: JSON.stringify([]),
+              }
+            ]).then(({ error }) => {
+              if (error) console.error("Error creating page from content item:", error);
+            });
+            
+            return {
+              ...workspace,
+              pages: [...workspace.pages, newPage],
+              currentPageId: newPageId,
+            };
+          }
+          
+          // For image type items
+          else if (item.type === "image") {
+            // Create a new page with image attachment
+            const newPageId = uuidv4();
+            const newAttachment: Attachment = {
+              id: uuidv4(),
+              type: "image",
+              url: item.content,
+              name: item.title,
+              createdAt: new Date().toISOString(),
+            };
+            
+            const newPage: Page = {
+              id: newPageId,
+              title: item.title,
+              content: "",
+              createdAt: new Date().toISOString(),
+              attachments: [newAttachment],
+            };
+            
+            // Add to database
+            supabase.from("pages").insert([
+              {
+                id: newPage.id,
+                workspaceId,
+                title: newPage.title,
+                content: newPage.content,
+                createdAt: newPage.createdAt,
+                attachments: JSON.stringify([newAttachment]),
+              }
+            ]).then(({ error }) => {
+              if (error) console.error("Error creating page with image:", error);
+            });
+            
+            return {
+              ...workspace,
+              pages: [...workspace.pages, newPage],
+              currentPageId: newPageId,
+            };
+          }
+          
+          return workspace;
+        });
+      });
+    } catch (error) {
+      console.error("Error adding content item:", error);
+    }
+  };
+
   const value: WorkspaceContextType = {
     workspaces,
     currentWorkspace,
@@ -477,6 +582,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
     selectPage,
     addAttachment,
     removeAttachment,
+    addContentItem,
   };
 
   return (
