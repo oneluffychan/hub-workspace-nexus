@@ -6,9 +6,17 @@ import 'react-quill/dist/quill.snow.css';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Paperclip, Image, Copy, Save } from 'lucide-react';
+import { Paperclip, Image, Save } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose
+} from '@/components/ui/dialog';
 
 interface PageEditorProps {
   workspaceId: string;
@@ -38,6 +46,8 @@ const PageEditor: React.FC<PageEditorProps> = ({
   const [content, setContent] = useState(initialContent);
   const [hasChanges, setHasChanges] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropzoneRef = useRef<HTMLDivElement>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Quill editor modules and formats
   const modules = {
@@ -88,10 +98,7 @@ const PageEditor: React.FC<PageEditorProps> = ({
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
+  const processFile = async (file: File) => {
     try {
       const reader = new FileReader();
       reader.onload = async (e) => {
@@ -100,6 +107,7 @@ const PageEditor: React.FC<PageEditorProps> = ({
           const imageData = result as string;
           await addAttachment(workspaceId, pageId, imageData, file.name);
           setHasChanges(true);
+          toast.success("Image uploaded successfully");
         }
       };
       reader.readAsDataURL(file);
@@ -109,39 +117,81 @@ const PageEditor: React.FC<PageEditorProps> = ({
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processFile(file);
+  };
+
   const handleRemoveAttachment = async (attachmentId: string) => {
     try {
       await removeAttachment(workspaceId, pageId, attachmentId);
+      toast.success("Attachment removed");
     } catch (error) {
       console.error("Error removing attachment:", error);
       toast.error("Failed to remove attachment");
     }
   };
 
-  const handleCopyToClipboard = () => {
-    try {
-      navigator.clipboard.writeText(content.replace(/<[^>]*>/g, ''));
-      toast.success("Content copied to clipboard");
-    } catch (error) {
-      console.error("Error copying to clipboard:", error);
-      toast.error("Failed to copy to clipboard");
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (dropzoneRef.current) {
+      dropzoneRef.current.classList.add('bg-gray-50');
     }
   };
 
-  const handlePasteFromClipboard = async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      setContent(text);
-      setHasChanges(true);
-      toast.success("Content pasted from clipboard");
-    } catch (error) {
-      console.error("Error pasting from clipboard:", error);
-      toast.error("Failed to paste from clipboard");
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (dropzoneRef.current) {
+      dropzoneRef.current.classList.remove('bg-gray-50');
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (dropzoneRef.current) {
+      dropzoneRef.current.classList.remove('bg-gray-50');
+    }
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const files = Array.from(e.dataTransfer.files);
+      const imageFiles = files.filter(file => file.type.startsWith('image/'));
+      
+      if (imageFiles.length) {
+        await Promise.all(imageFiles.map(file => processFile(file)));
+      }
+    }
+  };
+
+  // Handle paste images
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const blob = items[i].getAsFile();
+          if (blob) {
+            await processFile(blob);
+          }
+        }
+      }
     }
   };
 
   return (
-    <div className="space-y-4">
+    <div 
+      className="space-y-4"
+      ref={dropzoneRef}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      onPaste={handlePaste}
+    >
       <div className="flex items-center justify-between">
         <Input
           value={title}
@@ -152,22 +202,6 @@ const PageEditor: React.FC<PageEditorProps> = ({
         <div className="flex items-center gap-2">
           {!readOnly && (
             <>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={handleCopyToClipboard}
-              >
-                <Copy size={16} className="mr-2" />
-                Copy
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={handlePasteFromClipboard}
-              >
-                <Copy size={16} className="mr-2" />
-                Paste
-              </Button>
               <Button 
                 variant="outline" 
                 size="sm"
@@ -196,32 +230,61 @@ const PageEditor: React.FC<PageEditorProps> = ({
         </div>
       </div>
 
-      {/* Attachments Section */}
+      {/* Attachments Section - Compact Gallery */}
       {initialAttachments.length > 0 && (
-        <div className="border rounded-md p-4 bg-gray-50">
+        <div className="border rounded-md p-3 bg-gray-50">
           <Label className="mb-2 block">Attachments</Label>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
             {initialAttachments.map(attachment => (
-              <Card key={attachment.id} className="overflow-hidden">
-                <CardContent className="p-2">
+              <Card key={attachment.id} className="overflow-hidden border shadow-sm">
+                <CardContent className="p-1">
                   <div className="relative">
-                    <img 
-                      src={attachment.url} 
-                      alt={attachment.name} 
-                      className="w-full h-32 object-cover"
-                    />
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <img 
+                          src={attachment.url} 
+                          alt={attachment.name} 
+                          className="w-full h-16 object-cover cursor-pointer"
+                        />
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[800px] max-h-[80vh]">
+                        <DialogHeader>
+                          <DialogTitle className="text-sm">{attachment.name}</DialogTitle>
+                        </DialogHeader>
+                        <div className="flex justify-center items-center">
+                          <img
+                            src={attachment.url}
+                            alt={attachment.name}
+                            className="max-w-full max-h-[60vh] object-contain"
+                          />
+                        </div>
+                        {!readOnly && (
+                          <div className="flex justify-end">
+                            <DialogClose asChild>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleRemoveAttachment(attachment.id)}
+                              >
+                                Delete
+                              </Button>
+                            </DialogClose>
+                          </div>
+                        )}
+                      </DialogContent>
+                    </Dialog>
+                    
                     {!readOnly && (
                       <Button
                         variant="destructive"
                         size="sm"
-                        className="absolute top-2 right-2"
+                        className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0"
                         onClick={() => handleRemoveAttachment(attachment.id)}
                       >
                         ×
                       </Button>
                     )}
                   </div>
-                  <p className="mt-2 text-xs truncate">{attachment.name}</p>
                 </CardContent>
               </Card>
             ))}
@@ -229,7 +292,7 @@ const PageEditor: React.FC<PageEditorProps> = ({
         </div>
       )}
 
-      {/* Editor Section */}
+      {/* Editor Section with dropzone support */}
       <div className={`border rounded-md ${readOnly ? 'bg-gray-50' : ''}`}>
         <ReactQuill
           theme="snow"
@@ -241,6 +304,14 @@ const PageEditor: React.FC<PageEditorProps> = ({
           readOnly={readOnly}
         />
       </div>
+      
+      {/* Dropzone indicator */}
+      {!readOnly && (
+        <div className="mt-4 p-4 border-2 border-dashed border-gray-300 rounded-md text-center text-gray-500">
+          <Paperclip className="mx-auto h-6 w-6 mb-2" />
+          <p>Drag and drop images here or paste from clipboard</p>
+        </div>
+      )}
     </div>
   );
 };
