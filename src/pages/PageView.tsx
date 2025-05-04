@@ -29,6 +29,7 @@ const PageView: React.FC = () => {
       const page = getPageById(pageId);
       
       if (workspace && page) {
+        // Always force a fresh selection to prevent navigation issues
         selectWorkspace(workspaceId);
         selectPage(workspaceId, pageId);
       } else {

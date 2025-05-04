@@ -22,6 +22,7 @@ const WorkspacePage: React.FC = () => {
     if (workspaceId) {
       const workspace = getWorkspaceById(workspaceId);
       if (workspace) {
+        // Force a fresh selection of the workspace each time to fix navigation issues
         selectWorkspace(workspaceId);
       } else {
         // Workspace not found or not accessible

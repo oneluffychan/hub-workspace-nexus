@@ -37,8 +37,10 @@ const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
   filteredPages,
   currentPageId
 }) => {
+  const { workspaces, currentWorkspace, selectWorkspace, navigateToWorkspace } = useWorkspace();
+
   return (
-    <Sidebar variant="inset" collapsible="icon">
+    <Sidebar variant="inset" className="bg-white border-r" defaultCollapsed={false}>
       <SidebarHeader>
         <div className="flex items-center justify-between p-2">
           <h3 className="font-medium text-sm">Pages</h3>
@@ -53,6 +55,26 @@ const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
           onChange={(e) => setSearchQuery(e.target.value)}
           className="mx-2 mb-2 h-8"
         />
+        
+        {/* Workspace quick selector */}
+        <div className="px-2 pb-2">
+          <select 
+            className="w-full p-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            value={currentWorkspace?.id || ""}
+            onChange={(e) => {
+              if (e.target.value) {
+                navigateToWorkspace(e.target.value);
+              }
+            }}
+          >
+            <option value="" disabled>Select workspace</option>
+            {workspaces.map(workspace => (
+              <option key={workspace.id} value={workspace.id}>
+                {workspace.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </SidebarHeader>
       
       <SidebarContent>
@@ -89,9 +111,14 @@ const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
         )}
       </SidebarContent>
       
-      <SidebarFooter>
+      <SidebarFooter className="border-t">
         <div className="p-2 text-xs text-center text-gray-500">
-          Workspace Hub v1.0
+          <SidebarTrigger className="mb-2 w-full border rounded-md py-1 px-2">
+            {({ collapsed }) => (
+              <span>{collapsed ? "Expand" : "Collapse"} Sidebar</span>
+            )}
+          </SidebarTrigger>
+          <div className="mt-1">Workspace Hub v1.0</div>
         </div>
       </SidebarFooter>
     </Sidebar>
