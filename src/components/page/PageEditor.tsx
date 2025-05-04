@@ -292,6 +292,8 @@ const PageEditor: React.FC<PageEditorProps> = ({
                 onChange={handleImageUpload}
                 accept="image/*"
                 className="hidden"
+                title="Upload image"
+                aria-label="Upload image"
               />
             </>
           )}
@@ -373,13 +375,6 @@ const PageEditor: React.FC<PageEditorProps> = ({
         />
       </div>
       
-      {/* Dropzone indicator */}
-      {!readOnly && (
-        <div className="mt-4 p-4 border-2 border-dashed border-gray-300 rounded-md text-center text-gray-500">
-          <Paperclip className="mx-auto h-6 w-6 mb-2" />
-          <p>Drag and drop images here or paste from clipboard</p>
-        </div>
-      )}
     </div>
   );
 };

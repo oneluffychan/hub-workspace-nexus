@@ -68,7 +68,7 @@ const WorkspacePage = () => {
 
   return (
     <AppLayout>
-      {currentWorkspace && (
+      {/* {currentWorkspace && (
         <div className="p-4 flex justify-end space-x-2">
           <Button 
             size="sm" 
@@ -148,7 +148,7 @@ const WorkspacePage = () => {
             </PopoverContent>
           </Popover>
         </div>
-      )}
+      )} */}
       
       <WorkspaceContent />
     </AppLayout>
