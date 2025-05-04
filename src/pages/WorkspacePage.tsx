@@ -21,15 +21,16 @@ const WorkspacePage: React.FC = () => {
   useEffect(() => {
     if (workspaceId) {
       const workspace = getWorkspaceById(workspaceId);
+      
       if (workspace) {
-        // Force a fresh selection of the workspace each time to fix navigation issues
+        // Force a fresh selection of the workspace to fix navigation issues
         selectWorkspace(workspaceId);
       } else {
         // Workspace not found or not accessible
         navigate('/');
       }
     }
-  }, [workspaceId, selectWorkspace, getWorkspaceById, navigate]);
+  }, [workspaceId, getWorkspaceById, navigate, selectWorkspace]);
 
   if (loading || !user) {
     return (
