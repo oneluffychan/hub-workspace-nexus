@@ -6,7 +6,7 @@ import 'react-quill/dist/quill.snow.css';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Paperclip, Image, Save } from 'lucide-react';
+import { Paperclip, Image, Save, Share2, Copy, Check } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import {
@@ -17,6 +17,7 @@ import {
   DialogTrigger,
   DialogClose
 } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface PageEditorProps {
   workspaceId: string;
@@ -41,13 +42,15 @@ const PageEditor: React.FC<PageEditorProps> = ({
   attachments: initialAttachments,
   readOnly = false
 }) => {
-  const { updatePage, addAttachment, removeAttachment } = useWorkspace();
+  const { updatePage, addAttachment, removeAttachment, togglePagePublic, getPageById } = useWorkspace();
   const [title, setTitle] = useState(initialTitle);
   const [content, setContent] = useState(initialContent);
   const [hasChanges, setHasChanges] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropzoneRef = useRef<HTMLDivElement>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [isSharePopoverOpen, setIsSharePopoverOpen] = useState(false);
 
   // Quill editor modules and formats
   const modules = {
@@ -183,6 +186,25 @@ const PageEditor: React.FC<PageEditorProps> = ({
     }
   };
 
+  // Share functionality
+  const handleSharePage = () => {
+    const pageData = getPageById(pageId);
+    if (!pageData) return;
+    
+    const shareUrl = `${window.location.origin}/share/page/${pageId}`;
+    navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    
+    // Make page public if it's not already
+    if (!pageData.isPublic) {
+      togglePagePublic(workspaceId, pageId, true);
+      toast.success('Page is now public and can be shared');
+    } else {
+      toast.success('Share link copied to clipboard');
+    }
+  };
+
   return (
     <div 
       className="space-y-4"
@@ -202,6 +224,52 @@ const PageEditor: React.FC<PageEditorProps> = ({
         <div className="flex items-center gap-2">
           {!readOnly && (
             <>
+              <Popover open={isSharePopoverOpen} onOpenChange={setIsSharePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex items-center space-x-1"
+                  >
+                    <Share2 size={16} className="mr-2" />
+                    <span>Share</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80" align="end">
+                  <div className="grid gap-4">
+                    <div className="space-y-2">
+                      <h4 className="font-medium">Share this page</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Anyone with the link can view this page.
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <Input 
+                        value={`${window.location.origin}/share/page/${pageId}`} 
+                        readOnly
+                        onClick={(e) => (e.target as HTMLInputElement).select()}
+                      />
+                      <Button 
+                        size="sm" 
+                        variant={copied ? "default" : "secondary"}
+                        onClick={handleSharePage}
+                        className="shrink-0"
+                      >
+                        {copied ? <Check size={16} /> : <Copy size={16} />}
+                      </Button>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-muted-foreground">
+                        {getPageById(pageId)?.isPublic 
+                          ? 'This page is public and can be shared' 
+                          : 'This page will be made public when you share it'}
+                      </span>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
               <Button 
                 variant="outline" 
                 size="sm"
