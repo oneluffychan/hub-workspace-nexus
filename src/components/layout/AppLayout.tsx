@@ -7,7 +7,7 @@ import Header from "./Header";
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-
+  
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -23,9 +23,9 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
       <Sidebar />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col overflow-hidden">
         <Header viewMode={viewMode} setViewMode={setViewMode} />
-        <main className="flex-1 p-4 md:p-6 overflow-auto bg-gray-50">
+        <main className="flex-1 overflow-auto bg-gray-50">
           {React.Children.map(children, child => {
             if (React.isValidElement(child)) {
               return React.cloneElement(child as React.ReactElement<any>, { viewMode });

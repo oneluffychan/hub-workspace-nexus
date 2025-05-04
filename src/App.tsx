@@ -14,6 +14,7 @@ import WorkspacePage from "./pages/WorkspacePage";
 import PageView from "./pages/PageView";
 import SharedPage from "./pages/SharedPage";
 import SharedWorkspace from "./pages/SharedWorkspace";
+import { useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient();
 
@@ -21,21 +22,22 @@ const queryClient = new QueryClient();
 const RestoreLastPath = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    // Only redirect if we're on the root path
-    if (location.pathname === '/') {
+    // Only redirect if we're on the root path AND authenticated
+    if (location.pathname === '/' && user) {
       const lastPath = localStorage.getItem('lastPath');
       
       // Check if lastPath is valid and not the root
       if (lastPath && lastPath !== '/' && !lastPath.includes('undefined')) {
         navigate(lastPath);
       }
-    } else {
-      // Always store the current path for later restoration
+    } else if (location.pathname !== '/login' && location.pathname !== '/signup') {
+      // Store the current path for later restoration if it's not login/signup pages
       localStorage.setItem('lastPath', location.pathname);
     }
-  }, [location.pathname, navigate]);
+  }, [location.pathname, navigate, user]);
 
   return null;
 };

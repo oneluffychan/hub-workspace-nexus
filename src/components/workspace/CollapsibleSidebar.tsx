@@ -1,10 +1,9 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { Button } from '@/components/ui/button';
-import { Trash2, Search, Plus, File, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trash2, Plus, File, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface CollapsibleSidebarProps {
   onCreatePage: () => void;
@@ -29,7 +28,18 @@ const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
   currentPageId
 }) => {
   const { workspaces, currentWorkspace, navigateToWorkspace } = useWorkspace();
-  const [collapsed, setCollapsed] = React.useState(false);
+  // Get collapsed state from localStorage with default false
+  const savedCollapsed = localStorage.getItem('sidebarCollapsed');
+  const [collapsed, setCollapsed] = useState(savedCollapsed === 'true');
+  
+  // Save collapsed state to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', String(collapsed));
+  }, [collapsed]);
+
+  const toggleCollapse = () => {
+    setCollapsed(prevState => !prevState);
+  };
 
   return (
     <div className={`bg-white border-r transition-all h-full ${collapsed ? 'w-16' : 'w-64'}`}>
@@ -64,7 +74,7 @@ const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
           )}
           
           {/* Workspace quick selector - show only if not collapsed */}
-          {!collapsed && (
+          {!collapsed && currentWorkspace && (
             <select 
               className="w-full p-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
               value={currentWorkspace?.id || ""}
@@ -134,7 +144,7 @@ const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
             variant="outline" 
             size="sm"
             className="w-full flex justify-center items-center"
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={toggleCollapse}
           >
             {collapsed ? (
               <ChevronRight size={16} />

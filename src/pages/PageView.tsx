@@ -1,10 +1,12 @@
-
 import React, { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import AppLayout from '@/components/layout/AppLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import PageEditor from '@/components/page/PageEditor';
+import CollapsibleSidebar from '@/components/workspace/CollapsibleSidebar';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { useState } from 'react';
 
 const PageView: React.FC = () => {
   const { workspaceId, pageId } = useParams<{ workspaceId: string; pageId: string }>();
@@ -14,8 +16,14 @@ const PageView: React.FC = () => {
     selectWorkspace, 
     selectPage, 
     getWorkspaceById, 
-    getPageById 
+    getPageById,
+    deletePage,
+    createPage,
+    currentWorkspace
   } = useWorkspace();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [pageToDelete, setPageToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -42,6 +50,45 @@ const PageView: React.FC = () => {
   const page = pageId ? getPageById(pageId) : null;
   const workspace = workspaceId ? getWorkspaceById(workspaceId) : null;
 
+  // Handlers for sidebar
+  const handleCreatePage = async () => {
+    if (!workspaceId) return;
+    const newPageId = await createPage(workspaceId, "Untitled Page");
+    if (newPageId) {
+      navigate(`/workspace/${workspaceId}/page/${newPageId}`);
+    }
+  };
+  
+  const handleSelectPage = (selectedPageId: string) => {
+    if (!workspaceId) return;
+    navigate(`/workspace/${workspaceId}/page/${selectedPageId}`);
+  };
+
+  const handleDeleteClick = (selectedPageId: string) => {
+    setPageToDelete(selectedPageId);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!pageToDelete || !workspaceId) return;
+    
+    await deletePage(workspaceId, pageToDelete);
+    setIsDeleteDialogOpen(false);
+    setPageToDelete(null);
+    
+    // If we deleted the current page, navigate to workspace
+    if (pageToDelete === pageId) {
+      navigate(`/workspace/${workspaceId}`);
+    }
+  };
+
+  // Filter pages based on search query
+  const filteredPages = workspace && searchQuery
+    ? workspace.pages.filter(p =>
+        p.title.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : workspace?.pages || [];
+
   if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -65,15 +112,46 @@ const PageView: React.FC = () => {
 
   return (
     <AppLayout>
-      <div className="p-6">
-        <PageEditor
-          workspaceId={workspaceId}
-          pageId={page.id}
-          title={page.title}
-          content={page.content}
-          attachments={page.attachments}
+      <div className="flex h-full w-full">
+        {/* Keep sidebar visible on all pages */}
+        <CollapsibleSidebar
+          onCreatePage={handleCreatePage}
+          onSelectPage={handleSelectPage}
+          onDeleteClick={handleDeleteClick}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          filteredPages={filteredPages}
+          currentPageId={page.id}
         />
+        
+        <div className="flex-1 p-6 overflow-auto">
+          <PageEditor
+            workspaceId={workspaceId}
+            pageId={page.id}
+            title={page.title}
+            content={page.content}
+            attachments={page.attachments}
+          />
+        </div>
       </div>
+      
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete this page and all of its content.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 };

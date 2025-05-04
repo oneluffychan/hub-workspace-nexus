@@ -7,19 +7,33 @@ import './index.css';
 
 // Initialize application 
 const initApp = () => {
-  // Save the current URL in localStorage when navigation happens
-  // This will help restore the state on refresh
-  window.addEventListener('popstate', () => {
+  // Record initial path on first load
+  if (!localStorage.getItem('lastPath')) {
     localStorage.setItem('lastPath', window.location.pathname);
+  }
+
+  // Save the current URL in localStorage when navigation happens
+  window.addEventListener('popstate', () => {
+    // Don't save login/signup pages in lastPath
+    if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/signup')) {
+      localStorage.setItem('lastPath', window.location.pathname);
+    }
   });
 
   // Also save the path when clicking links (before popstate fires)
   document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
-    if (target.tagName === 'A' || target.closest('a')) {
-      setTimeout(() => {
-        localStorage.setItem('lastPath', window.location.pathname);
-      }, 0);
+    const link = target.tagName === 'A' ? target : target.closest('a');
+    
+    if (link) {
+      // Extract path from href
+      const href = link.getAttribute('href');
+      if (href && !href.includes('/login') && !href.includes('/signup')) {
+        // Delay to ensure we get the right path after navigation
+        setTimeout(() => {
+          localStorage.setItem('lastPath', window.location.pathname);
+        }, 0);
+      }
     }
   });
 
